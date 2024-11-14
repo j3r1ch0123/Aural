@@ -1,4 +1,4 @@
-# Import necessary libraries
+#!/usr/bin/env python3.11
 import requests
 import os
 import time
