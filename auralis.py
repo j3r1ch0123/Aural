@@ -1,5 +1,6 @@
 # Import necessary libraries
 import requests
+import os
 import time
 import gtts
 import pygame
@@ -38,6 +39,7 @@ def speak(text):
     pygame.mixer.music.play()
     while pygame.mixer.music.get_busy():
         pygame.time.Clock().tick(10)
+    os.remove("output.mp3")
         
 def talk():
     recognizer = speech.Recognizer()
