@@ -1,0 +1,4 @@
+speechrecognition
+pygame
+gTTS
+requests
