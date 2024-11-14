@@ -67,8 +67,5 @@ This project is open-source and available under the MIT License.
 
 markdown
 
-
-### **requirements.txt**
-
 Notes:
 Make sure the Ollama API is running with the Dolphin Mistral model before using the program.
