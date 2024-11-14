@@ -19,7 +19,7 @@ Create and activate a virtual environment (optional but recommended):
 
 bash
 ```
-Copy code
+
 python -m venv venv
 source venv/bin/activate  # For Linux/macOS
 venv\Scripts\activate  # For Windows
@@ -37,7 +37,7 @@ Run the program:
 
 bash
 ```
-Copy code
+
 python auralis.py
 ```
 How to Use
@@ -68,7 +68,7 @@ License
 This project is open-source and available under the MIT License.
 
 markdown
-Copy code
+
 
 ### **requirements.txt**
 
