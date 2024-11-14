@@ -66,7 +66,16 @@ def talk():
 def main():
     url = "http://localhost:11434/v1/chat/completions" # Change this depending on the server IP
     while True:
-        message = talk()
+        # Check if the user has a microphone or not
+        if not speech.Microphone.list_microphone_names():
+            print("No microphone found. Please type your message:")
+            message = input()
+            send_message(url, message)
+            continue
+        else:
+            print("Microphone found. Starting conversation...")
+            message = talk()
+
         if message:  # Only proceed if user input was successfully recognized
             send_message(url, message)
         time.sleep(5)
