@@ -33,7 +33,7 @@ Run the program:
 
 bash
 Copy code
-python leigh.py
+python auralis.py
 How to Use
 Press Enter to start the program and allow the assistant to listen.
 Speak your command or question.
