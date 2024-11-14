@@ -62,7 +62,7 @@ def talk():
 
 
 def main():
-    url = "http://localhost:11434/v1/chat/completions"
+    url = "http://localhost:11434/v1/chat/completions" # Change this depending on the server IP
     while True:
         message = talk()
         if message:  # Only proceed if user input was successfully recognized
