@@ -9,7 +9,7 @@ import speech_recognition as speech
 def send_message(url, message):
     headers = {"Content-Type": "application/json"}
     data = {
-        "model": "dolphin-mistral",
+        "model": "dolphin-mistral", # Change this if you want to interact with another model
         "messages": [
             {
                 "role": "user",
