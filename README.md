@@ -19,7 +19,6 @@ Create and activate a virtual environment (optional but recommended):
 
 bash
 ```
-
 python -m venv venv
 source venv/bin/activate  # For Linux/macOS
 venv\Scripts\activate  # For Windows
@@ -37,7 +36,6 @@ Run the program:
 
 bash
 ```
-
 python auralis.py
 ```
 How to Use
