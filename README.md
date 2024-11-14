@@ -28,7 +28,6 @@ Install the dependencies:
 
 bash
 ```
-Copy code
 pip install -r requirements.txt
 ```
 
@@ -73,12 +72,5 @@ Copy code
 
 ### **requirements.txt**
 
-```txt
-speechrecognition
-pygame
-gTTS
-requests
-```
 Notes:
-Replace your-username with your actual GitHub username in the git clone command.
 Make sure the Ollama API is running with the Dolphin Mistral model before using the program.
