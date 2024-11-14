@@ -13,8 +13,8 @@ This is a Python-based voice-interactive AI assistant that utilizes speech recog
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/your-username/voice-interactive-ai.git
-   cd voice-interactive-ai
+   git clone https://github.com/j3r1ch0123/Auralis.git
+   cd Auralis
 Create and activate a virtual environment (optional but recommended):
 
 bash
