@@ -1,4 +1,4 @@
-# Auralis
+# Aural
 A python program designed to let the user talk to their locally hosted AI.
 
 This is a Python-based voice-interactive AI assistant that utilizes speech recognition and text-to-speech technologies. The program allows you to interact with a local AI model (Dolphin Mistral) hosted via the Ollama API. You can speak to the assistant, and it will process your input and respond with speech.
@@ -13,8 +13,8 @@ This is a Python-based voice-interactive AI assistant that utilizes speech recog
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/j3r1ch0123/Auralis.git
-   cd Auralis
+   git clone https://github.com/j3r1ch0123/Aural.git
+   cd Aural
 Create and activate a virtual environment (optional but recommended):
 
 bash
@@ -36,7 +36,7 @@ Run the program:
 
 bash
 ```
-python auralis.py
+python Aural.py
 ```
 How to Use
 
