@@ -36,7 +36,7 @@ Run the program:
 
 bash
 ```
-python Aural.py
+python aural.py
 ```
 How to Use
 
