@@ -44,8 +44,6 @@ Press Enter to start the program and allow the assistant to listen.
 
 Speak your command or question.
 
-Press Enter again when you’re done speaking to stop the recording and process the input.
-
 The assistant will respond with speech.
 
 Dependencies
