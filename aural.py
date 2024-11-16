@@ -4,61 +4,56 @@ import os
 import time
 import gtts
 import pygame
-import speech_recognition as sr
+import daemon
+import logging
+import speech_recognition as speech
 from pynput import keyboard
-import threading
 
 class Aural:
     def __init__(self):
-        self.listening = True  # Controls whether hotword detection is active
+        self.listening = True
+        logging.basicConfig(
+            filename='/tmp/aural.log',
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+        logging.info("Aural initialized.")
 
-    def send_message(self, url, message):
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "model": "llama3.2",  # Change this if you want to interact with another model
-            "messages": [
-                {
-                    "role": "user",
-                    "content": message
-                }
-            ],
-        }
-
-        # Send the API request and get the response
-        response = requests.post(url, headers=headers, json=data)
-
-        if response.status_code == 200:
-            # Get the text from the response
-            text = response.json()["choices"][0]["message"]["content"]
-            print("AI Response:", text)
-
-            # Play the response audio
-            self.speak(text)
-        else:
-            print("Error:", response.text)
-
-    def hotwords_detection(self, hotwords=["hey llama"], callback=None):
-        recognizer = sr.Recognizer()
-        with sr.Microphone() as source:
+    def hotword_detection(self, hotwords=["hey llama"]):
+        recognizer = speech.Recognizer()
+        with speech.Microphone() as source:
             print("Listening for hotwords...")
-            recognizer.adjust_for_ambient_noise(source)  # Adjust for background noise
+            recognizer.adjust_for_ambient_noise(source)
             while self.listening:
                 try:
                     audio = recognizer.listen(source, timeout=None, phrase_time_limit=5)
                     text = recognizer.recognize_google(audio).lower()
                     print(f"Heard: {text}")
-                    for hotword in hotwords:
-                        if hotword in text:
-                            print("Hotword detected!")
-                            self.listening = False  # Pause hotword detection
-                            if callback:
-                                callback()
-                            self.listening = True  # Reactivate hotword detection after callback
-                except sr.UnknownValueError:
+                    if any(hotword in text for hotword in hotwords):
+                        print("Hotword detected!")
+                        self.talk()  # Trigger recording for the command
+                except speech.UnknownValueError:
                     continue
-                except sr.RequestError as e:
+                except speech.RequestError as e:
                     print(f"Speech Recognition Error: {e}")
                     break
+
+    def send_message(self, url, message):
+        headers = {"Content-Type": "application/json"}
+        data = {
+            "model": "dolphin-mistral",
+            "messages": [{"role": "user", "content": message}],
+        }
+
+        response = requests.post(url, headers=headers, json=data)
+        if response.status_code == 200:
+            text = response.json()["choices"][0]["message"]["content"]
+            print("AI Response:", text)
+            logging.info(f"AI Response: {text}")
+            self.speak(text)
+        else:
+            print("Error:", response.text)
+            logging.error(f"API Error: {response.text}")
 
     def speak(self, text):
         tts = gtts.gTTS(text, lang="en")
@@ -71,60 +66,33 @@ class Aural:
         os.remove("output.mp3")
 
     def talk(self):
-        recognizer = sr.Recognizer()
-        stop_listening = False
+        recognizer = speech.Recognizer()
 
-        def on_press(key):
-            nonlocal stop_listening
-            if key == keyboard.Key.enter:
-                stop_listening = True
-                return False  # Stop listener
+        with speech.Microphone() as source:
+            print("Listening for a command...")
+            recognizer.adjust_for_ambient_noise(source)  # Adjust for background noise
+            try:
+                # Stop listening automatically after 5 seconds of silence or a completed phrase
+                audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
+                user_input = recognizer.recognize_google(audio)
+                print("You said:", user_input)
+                self.send_message("http://localhost:11434/v1/chat/completions", user_input)
+            except speech.UnknownValueError:
+                print("Could not understand audio")
+                logging.warning("Could not understand audio.")
+            except speech.WaitTimeoutError:
+                print("No speech detected within the timeout period.")
+                logging.info("No speech detected within timeout.")
+            except speech.RequestError as e:
+                print("Could not request results;", e)
+                logging.error(f"Speech Request Error: {e}")
 
-        # Start a listener for the Enter key
-        listener = keyboard.Listener(on_press=on_press)
-        listener.start()
-
-        with sr.Microphone() as source:
-            print("Listening... Press Enter to stop recording.")
-            audio = recognizer.listen(source, phrase_time_limit=None)
-            while not stop_listening:
-                pass  # Wait for the Enter key press
-
-        listener.join()  # Ensure listener ends cleanly
-
-        try:
-            user_input = recognizer.recognize_google(audio)
-            print("You said:", user_input)
-            return user_input
-        except sr.UnknownValueError:
-            print("Could not understand audio")
-            return None
-        except sr.RequestError as e:
-            print("Could not request results;", e)
-            return None
-
-    def main(self):
-        url = "http://localhost:11434/v1/chat/completions"  # Change this depending on the server IP
-
-        def start_conversation():
-            # Start recording and process the user's input
-            message = self.talk()
-            if message:
-                self.send_message(url, message)
-
-        # Run hotword detection in a separate thread
-        hotword_thread = threading.Thread(target=self.hotwords_detection, args=(["hey llama"], start_conversation))
-        hotword_thread.daemon = True
-        hotword_thread.start()
-
-        print("Hotword detection is running in the background...")
-        try:
-            while True:
-                time.sleep(1)  # Keep the main thread alive
-        except KeyboardInterrupt:
-            print("\nExiting...")
-            self.listening = False  # Stop hotword detection thread
+#def daemonize():
+#    run = Aural()
+#    with daemon.DaemonContext():
+#        run.hotword_detection()
 
 if __name__ == "__main__":
     run = Aural()
-    run.main()
+    run.hotword_detection()
+    
