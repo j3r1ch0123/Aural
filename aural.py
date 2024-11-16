@@ -114,8 +114,6 @@ class Aural:
         hotword_thread.start()
 
         print("Hotword detection is running in the background...")
-        while True:
-            time.sleep(1)  # Keep the main thread alive
 
 if __name__ == "__main__":
     run = Aural()
