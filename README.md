@@ -1,7 +1,7 @@
 # Aural
 A python program designed to let the user talk to their locally hosted AI.
 
-This is a Python-based voice-interactive AI assistant that utilizes speech recognition and text-to-speech technologies. The program allows you to interact with a local AI model (Dolphin Mistral) hosted via the Ollama API. You can speak to the assistant, and it will process your input and respond with speech.
+This is a Python-based voice-interactive AI assistant that utilizes speech recognition and text-to-speech technologies. The program allows you to interact with a local AI model hosted via the Ollama API. You can speak to the assistant, and it will process your input and respond with speech.
 
 ## Features
 - **Voice Input**: The assistant listens for your speech using your microphone.
@@ -30,7 +30,7 @@ bash
 pip install -r requirements.txt
 ```
 
-Make sure you have the Ollama API running locally with the Dolphin Mistral model available.
+Make sure you have the Ollama API running locally with the Llama3.2 model available.
 
 Run the program:
 
@@ -65,5 +65,3 @@ This project is open-source and available under the MIT License.
 
 markdown
 
-Notes:
-Make sure the Ollama API is running with the Dolphin Mistral model before using the program.
