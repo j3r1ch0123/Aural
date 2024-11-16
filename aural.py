@@ -46,16 +46,17 @@ class Aural:
                     print(f"Speech Recognition Error: {e}")
                     break
 
-    def translate_hotwords(self, hotwords=["hey llama", "llama are you there"], target_language="es"):
+    def translate_hotwords(self, hotwords, target_languages=["es", "fr"]):        
         translator = Translator()
         translated_hotwords = []
-        for hotword in hotwords:
-            try:
-                translation = translator.translate(hotword, dest=target_language)
-                translated_hotwords.append(translation.text)
-            except Exception as e:
-                print(f"Error translating hotword '{hotword}': {e}")
-                translated_hotwords.append(hotword)  # Fallback to original hotword
+        for lang in target_languages:
+            for hotword in hotwords:
+                try:
+                    translation = translator.translate(hotword, dest=lang)
+                    translated_hotwords.append(translation.text)
+                except Exception as e:
+                    print(f"Error translating hotword '{hotword}': {e}")
+                    translated_hotwords.append(hotword)  # Fallback to original hotword
         return translated_hotwords
 
     def send_message(self, url, message):
