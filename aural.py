@@ -7,6 +7,7 @@ import pygame
 import logging
 import speech_recognition as speech
 from pynput import keyboard
+from googletrans import Translator
 
 class Aural:
     def __init__(self):
@@ -18,29 +19,49 @@ class Aural:
         )
         logging.info("Aural initialized.")
 
-    def hotword_detection(self, hotwords=["hey llama"]):
+    def hotword_detection(self, hotwords=["hey llama", "llama are you there"], target_language="es"):
         recognizer = speech.Recognizer()
+        translated_hotwords = self.translate_hotwords(hotwords, target_language)
+
+        all_hotwords = hotwords + translated_hotwords  # Combine original and translated hotwords
+
         with speech.Microphone() as source:
             print("Listening for hotwords...")
             recognizer.adjust_for_ambient_noise(source)
+
             while self.listening:
                 try:
                     audio = recognizer.listen(source, timeout=None, phrase_time_limit=5)
                     text = recognizer.recognize_google(audio).lower()
                     print(f"Heard: {text}")
-                    if any(hotword in text for hotword in hotwords):
+
+                    # Check if any hotword is present in the recognized text
+                    if any(hotword in text for hotword in all_hotwords):
                         print("Hotword detected!")
                         self.talk()  # Trigger recording for the command
+
                 except speech.UnknownValueError:
-                    continue
+                    continue  # Ignore unintelligible speech
                 except speech.RequestError as e:
                     print(f"Speech Recognition Error: {e}")
                     break
 
+    def translate_hotwords(self, hotwords=["hey llama", "llama are you there"], target_language="es"):
+        translator = Translator()
+        translated_hotwords = []
+        for hotword in hotwords:
+            try:
+                translation = translator.translate(hotword, dest=target_language)
+                translated_hotwords.append(translation.text)
+            except Exception as e:
+                print(f"Error translating hotword '{hotword}': {e}")
+                translated_hotwords.append(hotword)  # Fallback to original hotword
+        return translated_hotwords
+
     def send_message(self, url, message):
         headers = {"Content-Type": "application/json"}
         data = {
-            "model": "dolphin-mistral",
+            "model": "llama3.2",
             "messages": [{"role": "user", "content": message}],
         }
 
