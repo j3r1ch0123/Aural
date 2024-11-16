@@ -4,7 +4,6 @@ import os
 import time
 import gtts
 import pygame
-import daemon
 import logging
 import speech_recognition as speech
 from pynput import keyboard
@@ -86,11 +85,6 @@ class Aural:
             except speech.RequestError as e:
                 print("Could not request results;", e)
                 logging.error(f"Speech Request Error: {e}")
-
-#def daemonize():
-#    run = Aural()
-#    with daemon.DaemonContext():
-#        run.hotword_detection()
 
 if __name__ == "__main__":
     run = Aural()
