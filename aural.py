@@ -9,6 +9,9 @@ from pynput import keyboard
 import threading
 
 class Aural:
+    def __init__(self):
+        self.listening = True  # Controls whether hotword detection is active
+
     def send_message(self, url, message):
         headers = {"Content-Type": "application/json"}
         data = {
@@ -39,7 +42,7 @@ class Aural:
         with sr.Microphone() as source:
             print("Listening for hotwords...")
             recognizer.adjust_for_ambient_noise(source)  # Adjust for background noise
-            while True:
+            while self.listening:
                 try:
                     audio = recognizer.listen(source, timeout=None, phrase_time_limit=5)
                     text = recognizer.recognize_google(audio).lower()
@@ -47,9 +50,10 @@ class Aural:
                     for hotword in hotwords:
                         if hotword in text:
                             print("Hotword detected!")
+                            self.listening = False  # Pause hotword detection
                             if callback:
-                                callback()  # Trigger the callback function
-                            return  # Exit hotword detection after detecting the hotword
+                                callback()
+                            self.listening = True  # Reactivate hotword detection after callback
                 except sr.UnknownValueError:
                     continue
                 except sr.RequestError as e:
@@ -114,6 +118,12 @@ class Aural:
         hotword_thread.start()
 
         print("Hotword detection is running in the background...")
+        try:
+            while True:
+                time.sleep(1)  # Keep the main thread alive
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            self.listening = False  # Stop hotword detection thread
 
 if __name__ == "__main__":
     run = Aural()
