@@ -4,3 +4,4 @@ gTTS
 requests
 pyaudio
 pynput
+googletrans
