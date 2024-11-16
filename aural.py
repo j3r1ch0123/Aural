@@ -5,11 +5,12 @@ import time
 import gtts
 import pygame
 import speech_recognition as speech
+from pynput import keyboard
 
 def send_message(url, message):
     headers = {"Content-Type": "application/json"}
     data = {
-        "model": "dolphin-mistral", # Change this if you want to interact with another model
+        "model": "llama3.2", # Change this if you want to interact with another model
         "messages": [
             {
                 "role": "user",
@@ -43,13 +44,25 @@ def speak(text):
         
 def talk():
     recognizer = speech.Recognizer()
-    with speech.Microphone() as source:
-        print("Press Enter to start recording...")
-        input()  # Wait for Enter key press to start recording
-        print("Listening... Press Enter again to stop recording.")
+    stop_listening = False
 
-        # Start recording
-        audio = recognizer.listen(source, phrase_time_limit=None)  # No phrase time limit
+    def on_press(key):
+        nonlocal stop_listening
+        if key == keyboard.Key.enter:
+            stop_listening = True
+            return False  # Stop listener
+
+    # Start a listener for the Enter key
+    listener = keyboard.Listener(on_press=on_press)
+    listener.start()
+
+    with speech.Microphone() as source:
+        print("Listening... Press Enter to stop recording.")
+        audio = recognizer.listen(source, phrase_time_limit=None)
+        while not stop_listening:
+            pass  # Wait for the Enter key press
+
+    listener.join()  # Ensure listener ends cleanly
 
     try:
         user_input = recognizer.recognize_google(audio)
