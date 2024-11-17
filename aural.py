@@ -178,7 +178,6 @@ class Aural:
         elif "weather" in command:
             self.handle_weather_query(command)
         else:
-            print(f"Unknown home automation command: {command}")
             logging.warning(f"Unknown home command: {command}")
 
     def handle_weather_query(self, command):
