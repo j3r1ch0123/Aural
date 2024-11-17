@@ -198,3 +198,7 @@ class Aural:
         print(f"Entity ID not found for command: {command}")
         logging.warning(f"Entity ID not found for {action} in command: {command}")
         return None
+
+if __name__ == "__main__":
+    aural = Aural()
+    aural.hotword_detection()
