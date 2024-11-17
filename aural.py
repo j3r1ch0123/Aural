@@ -13,6 +13,8 @@ class Aural:
     def __init__(self):
         self.listening = True
         self.token = os.getenv("HOME_ASSISTANT_TOKEN")
+        self.home_assistant_url = "http://localhost:8123/api"
+        
         logging.basicConfig(
             filename='./aural.log',
             level=logging.INFO,
