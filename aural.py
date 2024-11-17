@@ -14,7 +14,7 @@ class Aural:
         self.listening = True
         self.token = os.getenv("HOME_ASSISTANT_TOKEN")
         self.home_assistant_url = "http://localhost:8123/api/states/"
-        
+
         logging.basicConfig(
             filename='./aural.log',
             level=logging.INFO,
@@ -22,7 +22,7 @@ class Aural:
         )
         logging.info("Aural initialized.")
 
-    def hotword_detection(self, hotwords=["llama", "hey llama", "llama are you there", "hey llama are you there", "dolphin", "hey dolphin", "dolphin are you there", "home", "hey home", "home are you there"], target_language="es"):
+    def hotword_detection(self, hotwords=["llama", "hey llama", "llama are you there", "hey llama are you there", "dolphin", "hey dolphin", "dolphin are you there", "home", "hey home", "home are you there", "exit"], target_language="es"):
         recognizer = speech.Recognizer()
         translated_hotwords = self.translate_hotwords(hotwords, target_language)
 
@@ -49,7 +49,10 @@ class Aural:
                         elif "home" in text:
                             model = "fixt/home-3b-v3"
                             self.process_home_command_with_ai(model)  # Send command to the home AI model
-                        
+                        elif "exit" in text:
+                            print("Exiting Auralis...")
+                            exit()
+
                         if model:  # Only call talk if model is assigned
                             self.talk(model)  # Trigger recording for the command
 
@@ -181,7 +184,7 @@ class Aural:
             logging.warning(f"Unknown home command: {command}")
 
     def handle_weather_query(self, command):
-        """Handles weather queries by fetching data from Home Assistant. (Work in progress)"""
+        """Handles weather queries by fetching data from Home Assistant."""
         weather_entity = "sensor.weather"  # Change this to your actual weather entity
 
         headers = {
