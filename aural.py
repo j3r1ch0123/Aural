@@ -21,7 +21,7 @@ class Aural:
         """
         self.listening = True
         self.token = os.getenv("HOME_ASSISTANT_TOKEN")
-        self.home_assistant_url = "http://localhost:8123/api/states/" # Change this
+        self.home_assistant_url = "http://localhost:8123/api/states" # Change this
 
         logging.basicConfig(
             filename='./aural.log',
@@ -229,7 +229,12 @@ class Aural:
 
     def process_home_command_with_ai(self, model):
         print("Activating home automation...")
-        self.send_message("http://localhost:11434/v1/chat/completions", "Activate home automation", model)
+        logging.info("Activating home automation...")
+        # Use previous methods to control Home Assistant
+        self.home_assistant_control("light.living_room", "turn_on")
+        self.home_assistant_control("fan.ceiling_fan", "turn_on")
+        # Listen for a command
+        self.talk(model)
 
     def extract_entity_id(self, command, action=None):
         entity_map = {
