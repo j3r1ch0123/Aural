@@ -40,7 +40,7 @@ class Aural:
         model = None  # Initialize model to ensure it's always defined
 
         with speech.Microphone() as source:
-            print("Listening for hotwords...")
+            print(f"Listening for hotwords: {', '.join(all_hotwords)}")
             recognizer.adjust_for_ambient_noise(source)
 
             while self.listening:
