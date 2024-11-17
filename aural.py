@@ -11,6 +11,14 @@ from googletrans import Translator
 
 class Aural:
     def __init__(self):
+        self.banner = """
+   _____                      .__   
+  /  _  \  __ ______________  |  |  
+ /  /_\  \|  |  \_  __ \__  \ |  |  
+/    |    \  |  /|  | \// __ \|  |__
+\____|__  /____/ |__|  (____  /____/
+        \/                  \/      
+        """
         self.listening = True
         self.token = os.getenv("HOME_ASSISTANT_TOKEN")
         self.home_assistant_url = "http://localhost:8123/api/states/" # Change this
@@ -23,6 +31,8 @@ class Aural:
         logging.info("Aural initialized.")
 
     def hotword_detection(self, hotwords=["llama", "hey llama", "llama are you there", "hey llama are you there", "dolphin", "hey dolphin", "dolphin are you there", "home", "hey home", "home are you there", "exit"], target_language="es"):
+        print(self.banner)
+        time.sleep(2)
         recognizer = speech.Recognizer()
         translated_hotwords = self.translate_hotwords(hotwords, target_language)
 
