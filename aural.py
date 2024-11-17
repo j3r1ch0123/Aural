@@ -125,7 +125,6 @@ class Aural:
             print("Listening for a command...")
             recognizer.adjust_for_ambient_noise(source)  # Adjust for background noise
             try:
-                # Stop listening automatically after 5 seconds of silence or a completed phrase
                 audio = recognizer.listen(source, timeout=10, phrase_time_limit=20)  # Increased time limits
                 user_input = recognizer.recognize_google(audio)
                 print("You said:", user_input)
@@ -174,10 +173,46 @@ class Aural:
                     self.home_assistant_control(entity_id, "turn_off")
                 else:
                     self.home_assistant_control(entity_id, "toggle")
-                    
+        elif "weather" in command:
+            self.handle_weather_query(command)
         else:
             print(f"Unknown home automation command: {command}")
             logging.warning(f"Unknown home command: {command}")
+
+    def handle_weather_query(self):
+        """Handles weather queries by fetching data from Home Assistant."""
+        # Example: Fetch the weather data from Home Assistant
+        weather_entity = "sensor.weather"  # Change this to your actual weather entity
+
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+
+        try:
+            response = requests.get(f"{self.home_assistant_url}/{weather_entity}", headers=headers)
+            response.raise_for_status()  # Raise an error for bad HTTP responses
+
+            weather_data = response.json()
+            if "state" not in weather_data:
+                print("Error fetching weather data.")
+                logging.error("Error fetching weather data.")
+                return "Sorry, I couldn't fetch the weather."
+
+            # Extract relevant data from the response
+            temperature = weather_data["state"]
+            attributes = weather_data["attributes"]
+            condition = attributes.get("condition", "unknown")
+            humidity = attributes.get("humidity", "unknown")
+
+            # Format response
+            weather_report = f"The current temperature is {temperature}°C with {condition}. Humidity is {humidity}%."
+            return weather_report
+
+        except requests.exceptions.RequestException as e:
+            print(f"Error fetching weather: {e}")
+            logging.error(f"Error fetching weather: {e}")
+            return "Sorry, I couldn't fetch the weather."
 
     def process_home_command_with_ai(self, model):
         print("Activating home automation...")
