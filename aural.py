@@ -12,6 +12,7 @@ from googletrans import Translator
 class Aural:
     def __init__(self):
         self.listening = True
+        self.token = os.getenv("HOME_ASSISTANT_TOKEN")
         logging.basicConfig(
             filename='./aural.log',
             level=logging.INFO,
@@ -141,7 +142,6 @@ class Aural:
     
     def home_assistant_control(self, entity_id, action="toggle"):
         url = f"http://localhost:8123/api/services/light/{action}"
-        token = os.getenv("HOME_ASSISTANT_TOKEN")
         if not token:
             print("Home Assistant token not found. Please set the HOME_ASSISTANT_TOKEN environment variable.")
             logging.error("Home Assistant token not found. Please set the HOME_ASSISTANT_TOKEN environment variable.")
@@ -179,9 +179,8 @@ class Aural:
             print(f"Unknown home automation command: {command}")
             logging.warning(f"Unknown home command: {command}")
 
-    def handle_weather_query(self):
+    def handle_weather_query(self, command):
         """Handles weather queries by fetching data from Home Assistant."""
-        # Example: Fetch the weather data from Home Assistant
         weather_entity = "sensor.weather"  # Change this to your actual weather entity
 
         headers = {
@@ -206,7 +205,7 @@ class Aural:
             humidity = attributes.get("humidity", "unknown")
 
             # Format response
-            weather_report = f"The current temperature is {temperature}°C with {condition}. Humidity is {humidity}%."
+            weather_report = f"The current temperature is {temperature}°F with {condition}. Humidity is {humidity}%."
             return weather_report
 
         except requests.exceptions.RequestException as e:
