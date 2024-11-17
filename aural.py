@@ -157,12 +157,12 @@ class Aural:
     
     def home_assistant_control(self, entity_id, action="toggle"):
         url = f"http://localhost:8123/api/services/light/{action}"
-        if not token:
+        if not self.token:
             print("Home Assistant token not found. Please set the HOME_ASSISTANT_TOKEN environment variable.")
             logging.error("Home Assistant token not found. Please set the HOME_ASSISTANT_TOKEN environment variable.")
             return
         headers = {
-            "Authorization": f"Bearer {token}",
+            "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
         }
         data = {"entity_id": entity_id}
