@@ -180,7 +180,7 @@ class Aural:
             logging.warning(f"Unknown home command: {command}")
 
     def handle_weather_query(self, command):
-        """Handles weather queries by fetching data from Home Assistant."""
+        """Handles weather queries by fetching data from Home Assistant. (Work in progress)"""
         weather_entity = "sensor.weather"  # Change this to your actual weather entity
 
         headers = {
