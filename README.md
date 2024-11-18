@@ -13,7 +13,7 @@ Text-to-Speech Output: The assistant converts its response to speech and plays i
 
 Home Automation Control: Interact with smart home devices (like lights, fans, thermostats, etc.) via Home Assistant.
 
-Weather Queries: Ask the assistant about the current weather, and it will retrieve accurate weather data using OpenWeatherMap.
+Weather Queries: Ask the assistant about the current weather, and it will retrieve accurate weather data using OpenWeatherMap. (work in progress)
 
 Multi-language Hotword Support: The assistant supports hotwords in multiple languages, making it more flexible for non-English speakers.
 
