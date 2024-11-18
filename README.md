@@ -43,6 +43,10 @@ venv\Scripts\activate  # For Windows
 
 Install the dependencies:
 
+Alternatively:
+
+bash install.sh
+
 bash
 Copy code
 
@@ -55,11 +59,11 @@ Run the program:
 bash
 Copy code
 
-python aural.py
+bash run.sh
 
 How to Use
 
-Press Enter to start the program and allow the assistant to listen.
+When prompted, speak one of the hotwords (e.g. "hey llama")
 
 Speak your command or question (e.g., ask about the weather or control your smart devices).
 
