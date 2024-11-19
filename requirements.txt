@@ -1,7 +1,5 @@
-speechrecognition
-pygame
-gTTS
 requests
-pyaudio
-pynput
-googletrans
+gtts
+pygame
+speechrecognition
+googletrans==4.0.0-rc1
