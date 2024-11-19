@@ -1,6 +1,8 @@
 # Aural
 A Python program designed to let the user talk to their locally hosted AI and interact with home automation systems.
 
+Now comes with a GUI.
+
 Aural is a Python-based voice-interactive AI assistant that utilizes speech recognition, text-to-speech technologies, and local AI models (such as Dolphin Mistral) hosted via the Ollama API. The program allows you to speak to the assistant, which 
 
 processes your input, responds with speech, and can interact with services like weather reports and home automation systems (via Home Assistant).
