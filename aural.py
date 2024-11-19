@@ -151,7 +151,7 @@ class Aural:
         os.remove(temp_file.name)
 
     def create_api_url(self, model):
-        supported_models = ["llama3.2", "dolphin-mistral"]
+        supported_models = ["llama3.2", "llama3.1", "dolphin-mistral"]
         if model not in supported_models:
             raise ValueError(f"Unsupported model: {model}. Supported models: {supported_models}")
         else:
