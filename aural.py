@@ -42,7 +42,6 @@ class Aural:
                             # Listen for audio input
                             audio = recognizer.listen(source, timeout=10, phrase_time_limit=10)
                             text = recognizer.recognize_google(audio).lower()
-                            print(f"Heard: {text}")
 
                             # Check for hotwords
                             if any(hotword in text for hotword in hotwords):  # Use `hotwords` parameter
