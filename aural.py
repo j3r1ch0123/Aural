@@ -10,7 +10,8 @@ import pygame
 import threading
 import tkinter as tk
 import speech_recognition as sr
-from googletrans import Translator
+from deep_translator import GoogleTranslator
+from ollama_python.endpoints import GenerateAPI, ModelManagementAPI
 
 class Aural:
     def __init__(self):
@@ -25,6 +26,7 @@ class Aural:
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
         logging.info("Aural initialized.")
+        self.home_assistant_control = HomeAssistantControl()
 
     def hotword_detection(self, hotwords):
         recognizer = sr.Recognizer()
@@ -62,7 +64,7 @@ class Aural:
 
                                 else:
                                     print("No matching hotword. Forwarding to API.")
-                                    model = "llama3.2"  # Default fallback model
+                                    model = "llama3.1"  # Default fallback model
                                     self.talk(model)
 
                         except sr.WaitTimeoutError:
@@ -78,7 +80,7 @@ class Aural:
             logging.error(f"Microphone error: {e}")
 
     def translate_hotwords(self, hotwords, target_languages=["es", "fr"]):
-        translator = Translator()
+        translator = GoogleTranslator()
         translated_cache = {}
         translated_hotwords = []
 
@@ -124,7 +126,10 @@ class Aural:
             self.speak(text)  # Provide verbal feedback to the user
 
             # Now filter and process the response for Home Assistant commands
-            self.process_home_command(text)  # Check if response is an automation command
+            home_command = HomeAssistantControl()
+            home_command.process_home_command(text)  # Check if response is an automation command
+
+            return response.status_code
 
         except requests.exceptions.RequestException as e:
             print("Error:", e)
@@ -145,17 +150,49 @@ class Aural:
             pygame.time.Clock().tick(10)
         os.remove(temp_file.name)
 
+    def create_api_url(self, model):
+        supported_models = ["llama3.2", "dolphin-mistral"]
+        if model not in supported_models:
+            raise ValueError(f"Unsupported model: {model}. Supported models: {supported_models}")
+        else:
+            print(f"Selected model: {model}")
+            # Pull the selected model
+            api = ModelManagementAPI(base_url="http://localhost:8000")
+            api.pull(model)
+        api_url = GenerateAPI(base_url="http://localhost:8000", model=model)
+        return api_url
+
     def talk(self, model):
         recognizer = sr.Recognizer()
-
         with sr.Microphone() as source:
             print("Listening for a command...")
-            recognizer.adjust_for_ambient_noise(source)  # Adjust for background noise
+            recognizer.adjust_for_ambient_noise(source)
             try:
-                audio = recognizer.listen(source, timeout=10, phrase_time_limit=20)  # Increased time limits
+                audio = recognizer.listen(source, timeout=10, phrase_time_limit=20)
                 user_input = recognizer.recognize_google(audio)
                 print("You said:", user_input)
-                self.send_message("http://localhost:11434/v1/chat/completions", user_input, model)
+
+                # Try the Ollama API first
+                text, response = self.send_message("http://localhost:11434/v1/chat/completions", user_input, model)
+                if response != 200:
+                    logging.warning(f"Ollama API failed with status code: {response}")
+                    print("Falling back to generated API URL...")
+                    fallback_url = self.create_api_url(model)
+                    if fallback_url:
+                        print(f"Retrying with fallback URL: {fallback_url}")
+                        text, response = self.send_message(fallback_url, user_input, model)
+                        if response != 200:
+                            print("Fallback API also failed.")
+                            logging.error(f"Fallback API failed with status code: {response}")
+                        else:
+                            print("Fallback API request successful.")
+                            logging.info("Fallback API request successful.")
+                    else:
+                        print("Could not generate fallback API URL.")
+                        logging.error("API fallback mechanism failed.")
+                else:
+                    print("Ollama API request successful.")
+                    logging.info("Ollama API request successful.")
             except sr.UnknownValueError:
                 print("Could not understand audio")
                 logging.warning("Could not understand audio.")
@@ -165,7 +202,15 @@ class Aural:
             except sr.RequestError as e:
                 print("Could not request results;", e)
                 logging.error(f"Speech Request Error: {e}")
+            except Exception as e:
+                print(f"Error during speech recognition: {e}")
+                logging.error(f"Speech Recognition Error: {e}")
     
+class HomeAssistantControl:
+    def __init__(self):
+        self.token = os.getenv("HOME_ASSISTANT_TOKEN")
+        self.url = os.getenv("HOME_ASSISTANT_URL")
+
     def home_assistant_control(self, entity_id, action="toggle"):
         url = f"http://localhost:8123/api/services/light/{action}"
         if not self.token:
@@ -273,7 +318,6 @@ class Aural:
         return None
 
 class AuralThread:
-
     def __init__(self, hotwords, token, home_assistant_url):
         super().__init__()
         self.hotwords = hotwords
@@ -398,5 +442,6 @@ class AuralInterface:
         sys.stdout = sys.__stdout__
 
 # Create and run the GUI
-aural_interface = AuralInterface()
-aural_interface.run()
+if __name__ == "__main__":
+    aural_interface = AuralInterface()
+    aural_interface.run()
