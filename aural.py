@@ -369,7 +369,14 @@ class AuralInterface:
         if user_input:
             print(f"User Input: {user_input}")  # Debug: Log the input
             try:
-                model = "llama3.2"  # Default model (or make it dynamic if needed)
+                # Use an if else statement to determine which model to use based on the hotwords
+                if "hey llama" in user_input or "llama are you there" in user_input or "llama" in user_input:
+                    model = "llama3.2"
+                elif "hey dolphin" in user_input or "dolphin are you there" in user_input or "dolphin" in user_input:
+                    model = "dolphin-mistral"
+                else:
+                    model = "llama3.2" # Default to llama3.2
+
                 self.aural.send_message("http://localhost:11434/v1/chat/completions", user_input, model)
             except Exception as e:
                 print(f"Error processing user input: {e}")
