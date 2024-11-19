@@ -3,4 +3,5 @@ gtts
 pygame
 pyaudio
 speechrecognition
-googletrans==4.0.0-rc1
+deep_translator
+ollama-python

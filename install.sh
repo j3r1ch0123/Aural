@@ -1,4 +1,5 @@
 #!/bin/bash
+sudo apt-get install -y curl python3-pip
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull llama3.2
 ollama pull dolphin-mistral
