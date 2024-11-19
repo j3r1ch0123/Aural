@@ -335,7 +335,7 @@ class AuralInterface:
 
         # Start Aural in a separate thread
         self.aural = Aural()
-        self.hotwords = ["hey llama", "llama"]
+        self.hotwords = ["hey llama", "llama", "llama are you there", "hey dolphin", "dolphin", "dolphin are you there"]
         threading.Thread(
             target=self.aural.hotword_detection,
             args=(self.hotwords,),
