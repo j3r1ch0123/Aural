@@ -328,14 +328,27 @@ class AuralInterface:
 
         # Text widget for logs
         self.text_widget = tk.Text(self.window, wrap=tk.WORD, state=tk.NORMAL)
-        self.text_widget.pack(expand=True, fill=tk.BOTH)
-        
+        self.text_widget.pack(expand=True, fill=tk.BOTH, pady=10)
+
+        # Create a text box for user input
+        self.user_input = tk.Text(self.window, height=5, width=50)
+        self.user_input.pack(pady=10)
+
+        # Create a button to send the user input
+        send_button = tk.Button(self.window, text="Send", command=self.send_input)
+        send_button.pack(pady=10)
+
         # Console redirection
         sys.stdout = ConsoleStream(self.text_widget)
 
-        # Start Aural in a separate thread
+        # Initialize Aural
         self.aural = Aural()
-        self.hotwords = ["hey llama", "llama", "llama are you there", "hey dolphin", "dolphin", "dolphin are you there"]
+        self.hotwords = [
+            "hey llama", "llama", "llama are you there",
+            "hey dolphin", "dolphin", "dolphin are you there"
+        ]
+
+        # Start hotword detection in a separate thread
         threading.Thread(
             target=self.aural.hotword_detection,
             args=(self.hotwords,),
@@ -343,6 +356,7 @@ class AuralInterface:
         ).start()
 
     def start_aural(self):
+        """Start the hotword detection."""
         print("Starting Aural...")
         threading.Thread(
             target=self.aural.hotword_detection,
@@ -350,14 +364,32 @@ class AuralInterface:
             daemon=True
         ).start()
 
+    def send_input(self):
+        """Send user input from the text box to the send_message function."""
+        user_input = self.user_input.get("1.0", tk.END).strip()  # Retrieve and clean user input
+        if user_input:
+            print(f"User Input: {user_input}")  # Debug: Log the input
+            try:
+                model = "llama3.2"  # Default model (or make it dynamic if needed)
+                self.aural.send_message("http://localhost:11434/v1/chat/completions", user_input, model)
+            except Exception as e:
+                print(f"Error processing user input: {e}")
+            finally:
+                # Clear the text box after sending
+                self.user_input.delete("1.0", tk.END)
+
     def stop_aural(self):
+        """Stop the hotword detection and close the application."""
         print("Stopping Aural...")
-        self.aural.listening = False  # Stop the hotword detection loop
-        # Stop the Aural thread
-        exit()
+        self.aural.listening = False  # Signal the hotword detection loop to stop
+        self.window.destroy()  # Close the GUI window
 
     def run(self):
+        """Run the GUI main loop."""
         self.window.mainloop()
+
+        # Close the console redirection
+        sys.stdout = sys.__stdout__
 
 # Create and run the GUI
 aural_interface = AuralInterface()
