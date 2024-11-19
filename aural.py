@@ -1,28 +1,24 @@
 #!/usr/bin/env python3.11
 import requests
 import os
+import sys
 import time
 import gtts
-import pygame
 import tempfile
 import logging
-import speech_recognition as speech
+import pygame
+import threading
+import tkinter as tk
+import speech_recognition as sr
 from googletrans import Translator
 
 class Aural:
     def __init__(self):
-        self.banner = """
-   _____                      .__   
-  /  _  \  __ ______________  |  |  
- /  /_\  \|  |  \_  __ \__  \ |  |  
-/    |    \  |  /|  | \// __ \|  |__
-\____|__  /____/ |__|  (____  /____/
-        \/                  \/      
-        """
         self.listening = True
-        self.token = os.getenv("HOME_ASSISTANT_TOKEN")
-        self.home_assistant_url = "http://localhost:8123/api/states" # Change this
-
+        self.lock = threading.Lock()
+        self.home_assistant_token = None
+        self.home_assistant_url = None
+        pygame.mixer.init()
         logging.basicConfig(
             filename='./aural.log',
             level=logging.INFO,
@@ -30,68 +26,84 @@ class Aural:
         )
         logging.info("Aural initialized.")
 
-    def hotword_detection(self, hotwords=["llama", "hey llama", "llama are you there", "hey llama are you there", "dolphin", "hey dolphin", "dolphin are you there", "home", "hey home", "home are you there", "exit"], target_language="es"):
-        print(self.banner)
-        time.sleep(2)
-        recognizer = speech.Recognizer()
-        translated_hotwords = self.translate_hotwords(hotwords, target_language)
+    def hotword_detection(self, hotwords):
+        recognizer = sr.Recognizer()
+        print("Starting hotword detection...")
 
-        all_hotwords = hotwords + translated_hotwords  # Combine original and translated hotwords
-        model = None  # Initialize model to ensure it's always defined
+        try:
+            with sr.Microphone() as source:
+                print("Adjusting for ambient noise...")
+                recognizer.adjust_for_ambient_noise(source)
+                print("Listening for hotwords...")
 
-        with speech.Microphone() as source:
-            print(f"Listening for hotwords: {', '.join(all_hotwords)}")
-            recognizer.adjust_for_ambient_noise(source)
+                while self.listening:
+                    with self.lock:
+                        try:
+                            # Listen for audio input
+                            audio = recognizer.listen(source, timeout=10, phrase_time_limit=10)
+                            text = recognizer.recognize_google(audio).lower()
+                            print(f"Heard: {text}")
 
-            while self.listening:
-                try:
-                    audio = recognizer.listen(source, timeout=None, phrase_time_limit=5)
-                    text = recognizer.recognize_google(audio).lower()
-                    print(f"Heard: {text}")
+                            # Check for hotwords
+                            if any(hotword in text for hotword in hotwords):  # Use `hotwords` parameter
+                                print("Hotword detected!")
 
-                    # Check if any hotword is present in the recognized text
-                    if any(hotword in text for hotword in all_hotwords):
-                        print("Hotword detected!")
-                        if "hey llama" in text or "llama are you there" in text or "llama" in text:
-                            model = "llama3.2"
-                        elif "hey dolphin" in text or "dolphin are you there" in text or "dolphin" in text:
-                            model = "dolphin-mistral"
-                        elif "home" in text:
-                            model = "fixt/home-3b-v3"
-                            self.process_home_command_with_ai(model)  # Send command to the home AI model
-                        elif "exit" in text:
-                            print("Exiting Auralis...")
-                            exit()
+                                if "hey llama" in text or "llama are you there" in text or "llama" in text:
+                                    model = "llama3.2"
+                                    self.talk(model)
 
-                        if model:  # Only call talk if model is assigned
-                            self.talk(model)  # Trigger recording for the command
+                                elif "hey dolphin" in text or "dolphin are you there" in text or "dolphin" in text:
+                                    model = "dolphin-mistral"
+                                    self.talk(model)
 
-                except speech.UnknownValueError:
-                    continue  # Ignore unintelligible speech
-                except speech.RequestError as e:
-                    print(f"Speech Recognition Error: {e}")
-                    break
+                                elif "exit" in text:
+                                    print("Exiting hotword detection.")
+                                    self.listening = False
+                                    break  # Exit the loop
+
+                                else:
+                                    print("No matching hotword. Forwarding to API.")
+                                    model = "default-model"  # Default fallback model
+                                    self.talk(model)
+
+                        except sr.WaitTimeoutError:
+                            print("Listening timed out, no speech detected.")
+                        except sr.UnknownValueError:
+                            print("Could not understand the audio.")
+                        except Exception as e:
+                            print(f"Error during hotword detection: {e}")
+                            logging.error(f"Hotword detection error: {e}")
+                            time.sleep(0.1)  # Small delay to prevent blocking
+        except Exception as e:
+            print(f"Error with microphone: {e}")
+            logging.error(f"Microphone error: {e}")
 
     def translate_hotwords(self, hotwords, target_languages=["es", "fr"]):
         translator = Translator()
+        translated_cache = {}
         translated_hotwords = []
-        
+
         for lang in target_languages:
-            if lang not in ['es', 'fr']:  # Add validation for language codes
-                print(f"Invalid language code: {lang}")
-                logging.warning(f"Invalid language code: {lang}")
-                continue  # Skip unsupported languages
-            
+            if lang in translated_cache:
+                # Use cached translations
+                translated_hotwords.extend(translated_cache[lang])
+                continue
+
+            lang_translations = []
             for hotword in hotwords:
                 try:
                     translation = translator.translate(hotword, dest=lang)
-                    translated_hotwords.append(translation.text)
+                    lang_translations.append(translation.text)
                     print(f"Translated '{hotword}' to {lang}: {translation.text}")
                 except Exception as e:
                     print(f"Error translating hotword '{hotword}': {e}")
                     logging.error(f"Error translating hotword '{hotword}': {e}")
-                    translated_hotwords.append(hotword)  # Fallback to original hotword if translation fails
-        
+                    lang_translations.append(hotword)
+
+            # Cache translations for this language
+            translated_cache[lang] = lang_translations
+            translated_hotwords.extend(lang_translations)
+
         return translated_hotwords
 
     def send_message(self, url, message, model):
@@ -135,9 +147,9 @@ class Aural:
         os.remove(temp_file.name)
 
     def talk(self, model):
-        recognizer = speech.Recognizer()
+        recognizer = sr.Recognizer()
 
-        with speech.Microphone() as source:
+        with sr.Microphone() as source:
             print("Listening for a command...")
             recognizer.adjust_for_ambient_noise(source)  # Adjust for background noise
             try:
@@ -145,13 +157,13 @@ class Aural:
                 user_input = recognizer.recognize_google(audio)
                 print("You said:", user_input)
                 self.send_message("http://localhost:11434/v1/chat/completions", user_input, model)
-            except speech.UnknownValueError:
+            except sr.UnknownValueError:
                 print("Could not understand audio")
                 logging.warning("Could not understand audio.")
-            except speech.WaitTimeoutError:
+            except sr.WaitTimeoutError:
                 print("No speech detected within the timeout period.")
                 logging.info("No speech detected within timeout.")
-            except speech.RequestError as e:
+            except sr.RequestError as e:
                 print("Could not request results;", e)
                 logging.error(f"Speech Request Error: {e}")
     
@@ -161,11 +173,14 @@ class Aural:
             print("Home Assistant token not found. Please set the HOME_ASSISTANT_TOKEN environment variable.")
             logging.error("Home Assistant token not found. Please set the HOME_ASSISTANT_TOKEN environment variable.")
             return
+        
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
         }
+        
         data = {"entity_id": entity_id}
+
         try:
             response = requests.post(url, headers=headers, json=data)
             response.raise_for_status()
@@ -204,28 +219,31 @@ class Aural:
 
         try:
             response = requests.get(f"{self.home_assistant_url}/{weather_entity}", headers=headers)
-            response.raise_for_status()  # Raise an error for bad HTTP responses
+            response.raise_for_status()
 
             weather_data = response.json()
             if "state" not in weather_data:
-                print("Error fetching weather data.")
-                logging.error("Error fetching weather data.")
-                return "Sorry, I couldn't fetch the weather."
+                raise ValueError("Weather entity is missing state information.")
 
-            # Extract relevant data from the response
+            # Extract relevant data
             temperature = weather_data["state"]
-            attributes = weather_data["attributes"]
-            condition = attributes.get("condition", "unknown")
-            humidity = attributes.get("humidity", "unknown")
+            attributes = weather_data.get("attributes", {})
+            condition = attributes.get("condition", "not available")
+            humidity = attributes.get("humidity", "not available")
 
-            # Format response
-            weather_report = f"The current temperature is {temperature}°F with {condition}. Humidity is {humidity}%."
-            return weather_report
+            weather_report = (
+                f"The current temperature is {temperature}°F with {condition}. "
+                f"Humidity is {humidity}%."
+            )
+            print(weather_report)
+            logging.info(weather_report)
+            self.speak(weather_report)
 
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching weather: {e}")
-            logging.error(f"Error fetching weather: {e}")
-            return "Sorry, I couldn't fetch the weather."
+        except (requests.exceptions.RequestException, ValueError) as e:
+            error_message = f"Error fetching weather: {e}"
+            print(error_message)
+            logging.error(error_message)
+            self.speak("Sorry, I couldn't fetch the weather.")
 
     def process_home_command_with_ai(self, model):
         print("Activating home automation...")
@@ -245,13 +263,102 @@ class Aural:
             "speaker": "media_player.kitchen_speaker",
             "weather": "sensor.weather",
         }
+
         for key, entity_id in entity_map.items():
             if key in command:
                 return entity_id
+
         print(f"Entity ID not found for command: {command}")
         logging.warning(f"Entity ID not found for {action} in command: {command}")
+
         return None
 
-if __name__ == "__main__":
-    aural = Aural()
-    aural.hotword_detection()
+class AuralThread:
+
+    def __init__(self, hotwords, token, home_assistant_url):
+        super().__init__()
+        self.hotwords = hotwords
+        self.token = token
+        self.home_assistant_url = home_assistant_url
+
+    def run(self):
+        aural = Aural()
+        aural.home_assistant_token = self.token
+        aural.home_assistant_url = self.home_assistant_url
+        self.log_signal.emit("Initializing Aural...")
+        # Make sure the hotword detection loop is active
+        aural.hotword_detection(hotwords=self.hotwords)
+        self.log_signal.emit("Hotword detection stopped.")
+
+class ConsoleStream:
+    def __init__(self, text_widget):
+        self.text_widget = text_widget
+
+    def write(self, text):
+        # Use the `after` method to update the text widget from the main thread
+        self.text_widget.after(0, self._insert_text, text)
+
+    def _insert_text(self, text):
+        self.text_widget.insert(tk.END, text + "\n")
+        self.text_widget.see(tk.END)  # Auto-scroll to the bottom
+
+    def flush(self):
+        pass
+
+    def close(self):
+        pass
+
+class AuralInterface:
+    def __init__(self):
+        # Create the main window
+        self.window = tk.Tk()
+        self.window.title("Aural Interface")
+
+        # Create a label for the title
+        title_label = tk.Label(self.window, text="Aural Interface", font=("Arial", 16))
+        title_label.pack(pady=10)
+
+        # Create a button to start Aural
+        start_button = tk.Button(self.window, text="Start Aural", command=self.start_aural)
+        start_button.pack(pady=10)
+
+        # Create a button to stop Aural
+        stop_button = tk.Button(self.window, text="Stop Aural", command=self.stop_aural)
+        stop_button.pack(pady=10)
+
+        # Text widget for logs
+        self.text_widget = tk.Text(self.window, wrap=tk.WORD, state=tk.NORMAL)
+        self.text_widget.pack(expand=True, fill=tk.BOTH)
+        
+        # Console redirection
+        sys.stdout = ConsoleStream(self.text_widget)
+
+        # Start Aural in a separate thread
+        self.aural = Aural()
+        self.hotwords = ["hey llama", "llama"]
+        threading.Thread(
+            target=self.aural.hotword_detection,
+            args=(self.hotwords,),
+            daemon=True
+        ).start()
+
+    def start_aural(self):
+        print("Starting Aural...")
+        threading.Thread(
+            target=self.aural.hotword_detection,
+            args=(self.hotwords,),
+            daemon=True
+        ).start()
+
+    def stop_aural(self):
+        print("Stopping Aural...")
+        self.aural.listening = False  # Stop the hotword detection loop
+        # Stop the Aural thread
+        exit()
+
+    def run(self):
+        self.window.mainloop()
+
+# Create and run the GUI
+aural_interface = AuralInterface()
+aural_interface.run()
