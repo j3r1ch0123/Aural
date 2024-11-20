@@ -134,6 +134,7 @@ class Aural:
         except requests.exceptions.RequestException as e:
             print("Error:", e)
             logging.error(f"API Error: {e}")
+            return None
 
     def speak(self, text):
         tts = gtts.gTTS(text, lang="en")
@@ -151,7 +152,7 @@ class Aural:
         os.remove(temp_file.name)
 
     def create_api_url(self, model):
-        supported_models = ["llama3.2", "llama3.1", "dolphin-mistral"]
+        supported_models = ["llama3.2", "dolphin-mistral"]
         if model not in supported_models:
             raise ValueError(f"Unsupported model: {model}. Supported models: {supported_models}")
         else:
@@ -369,6 +370,10 @@ class AuralInterface:
         stop_button = tk.Button(self.window, text="Stop Aural", command=self.stop_aural)
         stop_button.pack(pady=10)
 
+        # Create a label to pause Aural
+        pause_button = tk.Button(self.window, text="Pause Aural", command=self.pause_aural)
+        pause_button.pack(pady=10)
+
         # Text widget for logs
         self.text_widget = tk.Text(self.window, wrap=tk.WORD, state=tk.NORMAL)
         self.text_widget.pack(expand=True, fill=tk.BOTH, pady=10)
@@ -376,6 +381,10 @@ class AuralInterface:
         # Create a text box for user input
         self.user_input = tk.Text(self.window, height=5, width=50)
         self.user_input.pack(pady=10)
+
+        # Create pause event
+        self.pause_event = threading.Event()
+        self.pause_event.set()
 
         # Create a button to send the user input
         send_button = tk.Button(self.window, text="Send", command=self.send_input)
@@ -421,7 +430,25 @@ class AuralInterface:
                 else:
                     model = "llama3.2" # Default to llama3.2
 
-                self.aural.send_message("http://localhost:11434/v1/chat/completions", user_input, model)
+                status_code = self.aural.send_message("http://localhost:11434/v1/chat/completions", user_input, model)
+                if status_code != 200:
+                    print("API request failed.")
+                    print("Trying backup API...")
+                    api_url = self.aural.create_api_url(model)
+                    if api_url:
+                        status_code = self.aural.send_message(api_url, user_input, model)
+                        if status_code != 200:
+                            print("Fallback API request failed.")
+                            logging.error(f"Fallback API failed with status code: {status_code}")
+                        else:
+                            print("Fallback API request successful.")
+                            logging.info("Fallback API request successful.")
+                    else:
+                        print("Could not generate fallback API URL.")
+                        logging.error("API fallback mechanism failed.")
+                else:
+                    print("API request successful.")
+
             except Exception as e:
                 print(f"Error processing user input: {e}")
             finally:
@@ -433,6 +460,10 @@ class AuralInterface:
         print("Stopping Aural...")
         self.aural.listening = False  # Signal the hotword detection loop to stop
         self.window.destroy()  # Close the GUI window
+    
+    def pause_aural(self):
+        print("Pausing Aural...")
+        self.pause_event.clear()
 
     def run(self):
         """Run the GUI main loop."""
