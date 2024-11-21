@@ -99,7 +99,7 @@ This project is open-source and available under the MIT License.
 
 Notes:
 
-Make sure the Ollama API is running with the Dolphin Mistral model before using the program.
+Make sure the Ollama API is running with the Dolphin Mistral or Llama3.2 models before using the program.
 
 If you're using home automation features, ensure that Home Assistant is set up and accessible on your local network.
 
