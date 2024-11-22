@@ -72,10 +72,14 @@ class Aural:
                             print("Listening timed out, no speech detected.")
                         except sr.UnknownValueError:
                             print("Could not understand the audio.")
+                        except sr.RequestError as e:
+                            print(f"Error during speech recognition: {e}")
+                            logging.error(f"Speech recognition error: {e}")
                         except Exception as e:
                             print(f"Error during hotword detection: {e}")
                             logging.error(f"Hotword detection error: {e}")
                             time.sleep(0.1)  # Small delay to prevent blocking
+
         except Exception as e:
             print(f"Error with microphone: {e}")
             logging.error(f"Microphone error: {e}")
