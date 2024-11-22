@@ -1,5 +1,5 @@
 #!/bin/bash
-sudo apt-get install -y curl python3-pip
+sudo apt-get install -y curl python3-pip portaudio19-dev
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull llama3.2
 ollama pull dolphin-mistral
