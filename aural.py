@@ -65,7 +65,7 @@ class Aural:
 
                                 else:
                                     print("No matching hotword. Forwarding to API.")
-                                    model = "llama3.1"  # Default fallback model
+                                    model = "llama3.2"  # Default fallback model
                                     self.talk(model)
 
                         except sr.WaitTimeoutError:
