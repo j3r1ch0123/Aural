@@ -199,6 +199,18 @@ class Aural:
                 else:
                     print("Ollama API request successful.")
                     logging.info("Ollama API request successful.")
+                
+                # Check if the command involves Home Assistant automation
+                if "turn on" in text or "turn off" in text or "toggle" in text:
+                    self.process_home_command_with_ai(model)
+                else:
+                    print("No matching command. Forwarding to API.")
+                    self.process_home_command_with_ai(model)
+                
+                # Check if the command had a weather query
+                if "weather" in text:
+                    self.handle_weather_query(user_input)
+
             except sr.UnknownValueError:
                 print("Could not understand audio")
                 logging.warning("Could not understand audio.")
@@ -363,6 +375,10 @@ class AuralInterface:
         self.window = tk.Tk()
         self.window.title("Aural Interface")
 
+        # Create a label for the logo
+        logo_label = tk.Label(self.window, text="Aural", font=("Arial", 24))
+        logo_label.pack(pady=10)
+
         # Create a label for the time
         self.hour = datetime.now().strftime("%I:%M %p")
         self.time_label = tk.Label(self.window, text=f"Current Time: {self.hour}", font=("Arial", 12))
@@ -375,10 +391,6 @@ class AuralInterface:
         self.date = datetime.now().strftime("%A, %B %d, %Y")
         self.date_label = tk.Label(self.window, text=f"Current Date: {self.date}", font=("Arial", 12))
         self.date_label.pack(pady=5)
-
-        # Create a label for the title
-        title_label = tk.Label(self.window, text="Aural Interface", font=("Arial", 16))
-        title_label.pack(pady=10)
 
         # Create a button to start Aural
         start_button = tk.Button(self.window, text="Start Aural", command=self.start_aural)
@@ -445,6 +457,8 @@ class AuralInterface:
                     model = "llama3.2"
                 elif "hey dolphin" in user_input or "dolphin are you there" in user_input or "dolphin" in user_input:
                     model = "dolphin-mistral"
+                elif "exit" in user_input:
+                    self.stop_aural()
                 else:
                     model = "llama3.2" # Default to llama3.2
 
