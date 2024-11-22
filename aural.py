@@ -10,6 +10,7 @@ import pygame
 import threading
 import tkinter as tk
 import speech_recognition as sr
+from datetime import datetime
 from deep_translator import GoogleTranslator
 from ollama_python.endpoints import GenerateAPI, ModelManagementAPI
 
@@ -358,6 +359,19 @@ class AuralInterface:
         self.window = tk.Tk()
         self.window.title("Aural Interface")
 
+        # Create a label for the time
+        self.hour = datetime.now().strftime("%I:%M %p")
+        self.time_label = tk.Label(self.window, text=f"Current Time: {self.hour}", font=("Arial", 12))
+        self.time_label.pack(pady=5)
+
+        # Update the time label every second
+        self.update_time()
+
+        # Create a label for the date
+        self.date = datetime.now().strftime("%A, %B %d, %Y")
+        self.date_label = tk.Label(self.window, text=f"Current Date: {self.date}", font=("Arial", 12))
+        self.date_label.pack(pady=5)
+
         # Create a label for the title
         title_label = tk.Label(self.window, text="Aural Interface", font=("Arial", 16))
         title_label.pack(pady=10)
@@ -460,10 +474,15 @@ class AuralInterface:
         print("Stopping Aural...")
         self.aural.listening = False  # Signal the hotword detection loop to stop
         self.window.destroy()  # Close the GUI window
-    
+
     def pause_aural(self):
         print("Pausing Aural...")
         self.pause_event.clear()
+
+    def update_time(self):
+        current_time = datetime.now().strftime("%I:%M %p")
+        self.time_label.config(text=f"Current Time: {current_time}")
+        self.window.after(1000, self.update_time)
 
     def run(self):
         """Run the GUI main loop."""
