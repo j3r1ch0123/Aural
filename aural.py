@@ -340,36 +340,37 @@ class AuralInterface:
         self.update_time()
 
         # Create a label for the date
-        self.date = datetime.now().strftime("%A, %B %d, %Y")
-        self.date_label = tk.Label(self.window, text=f"Current Date: {self.date}", font=("Arial", 12))
+        self.date_label = tk.Label(self.window, text=f"Current Date: {datetime.now().strftime('%A, %B %d, %Y')}", font=("Arial", 12))
         self.date_label.pack(pady=5)
 
-        # Create a label for the location
-        self.location_label = tk.Label(self.window, text=f"Location: {self.get_geolocation()}", font=("Arial", 12))
-        self.location_label.pack(pady=5)
+        # Button frame
+        button_frame = tk.Frame(self.window)
+        button_frame.pack(pady=10)
 
-        # Create a label for the weather
-        self.weather_label = tk.Label(self.window, text="Weather Report", font=("Arial", 12))
-        self.weather_label.pack(pady=5)
+        # Create buttons and pack them side by side
+        start_button = tk.Button(button_frame, text="Start Aural", command=self.start_aural)
+        start_button.pack(side=tk.LEFT, padx=5)
 
-        # Call check_weather() after the label is created
-        self.check_weather()
+        stop_button = tk.Button(button_frame, text="Stop Aural", command=self.stop_aural)
+        stop_button.pack(side=tk.LEFT, padx=5)
 
-        # Create a button to start Aural
-        start_button = tk.Button(self.window, text="Start Aural", command=self.start_aural)
-        start_button.pack(pady=10)
+        pause_button = tk.Button(button_frame, text="Pause Aural", command=self.pause_aural)
+        pause_button.pack(side=tk.LEFT, padx=5)
 
-        # Create a button to stop Aural
-        stop_button = tk.Button(self.window, text="Stop Aural", command=self.stop_aural)
-        stop_button.pack(pady=10)
+        weather_button = tk.Button(button_frame, text="Check Weather", command=self.check_weather)
+        weather_button.pack(side=tk.LEFT, padx=5)
 
-        # Create a button to pause Aural
-        pause_button = tk.Button(self.window, text="Pause Aural", command=self.pause_aural)
-        pause_button.pack(pady=10)
+        fan_button = tk.Button(button_frame, text="Turn on Fan", command=self.turn_on_fan)
+        fan_button.pack(side=tk.LEFT, padx=5)
 
-        # Create a button to check the weather
-        weather_button = tk.Button(self.window, text="Check Weather", command=self.check_weather)
-        weather_button.pack(pady=10)
+        fan_off_button = tk.Button(button_frame, text="Turn off Fan", command=self.turn_off_fan)
+        fan_off_button.pack(side=tk.LEFT, padx=5)
+
+        light_button = tk.Button(button_frame, text="Turn on Light", command=self.turn_on_light)
+        light_button.pack(side=tk.LEFT, padx=5)
+
+        light_off_button = tk.Button(button_frame, text="Turn off Light", command=self.turn_off_light)
+        light_off_button.pack(side=tk.LEFT, padx=5)
 
         # Text widget for logs
         self.text_widget = tk.Text(self.window, wrap=tk.WORD, state=tk.NORMAL)
