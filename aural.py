@@ -461,7 +461,7 @@ class AuralInterface:
             city_state = self.extract_zip(location_string)
                 
         # Decide which to use based on preference
-        print(f"Checking weather for city and state: {city_state}")
+        print(f"Checking weather for city and state: {city_state}")  # Expected: "Syracuse, NY"
         print(f"Checking weather for ZIP code: {city_state}")  # Expected: "13202"
         
         async with python_weather.Client(unit=python_weather.IMPERIAL) as client:
@@ -571,7 +571,8 @@ class AuralInterface:
 
     def pause_aural(self):
         print("Pausing Aural...")
-        self.pause_event.clear()
+        # Use the existing threads to pause the hotword detection loop
+        self.aural.listening = False
 
 # Create and run the GUI
 if __name__ == "__main__":
