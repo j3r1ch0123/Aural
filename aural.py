@@ -437,7 +437,7 @@ class AuralInterface:
 
     def extract_city_state(self, location_string):
         # Attempt to extract city and state using regex
-        pattern = r'City of ([^,]+),\s*([^,]+)$'  # Matches "City of Syracuse, New York"
+        pattern = r'City of ([^,]+),\s*([^,]+)$'
         match = re.search(pattern, location_string)
         
         if match:
@@ -461,7 +461,7 @@ class AuralInterface:
             city_state = self.extract_zip(location_string)
                 
         # Decide which to use based on preference
-        print(f"Checking weather for city and state: {city_state}")  # Expected: "Syracuse, NY"
+        print(f"Checking weather for city and state: {city_state}")
         print(f"Checking weather for ZIP code: {city_state}")  # Expected: "13202"
         
         async with python_weather.Client(unit=python_weather.IMPERIAL) as client:
