@@ -1,9 +1,10 @@
 requests
+asyncio
 gtts
 pygame
-pyaudio
-speechrecognition
-deep_translator
-ollama-python
-geopy
 geocoder
+python-weather
+speechrecognition
+geopy
+deep-translator
+ollama-python
