@@ -1,5 +1,7 @@
 #!/usr/bin/env python3.11
 import requests
+import asyncio
+import re
 import os
 import sys
 import time
@@ -9,6 +11,7 @@ import logging
 import pygame
 import threading
 import geocoder
+import python_weather
 import tkinter as tk
 import speech_recognition as sr
 from geopy.geocoders import Nominatim
@@ -227,12 +230,14 @@ class Aural:
                 logging.error(f"Speech Recognition Error: {e}")
     
 class HomeAssistantControl:
-    def __init__(self):
+    def __init__(self, weather_label=None):
         self.token = os.getenv("HOME_ASSISTANT_TOKEN")
         self.url = os.getenv("HOME_ASSISTANT_URL")
+        self.home_assistant_url = self.url
+        self.weather_label = weather_label  # Store a reference to the label
 
     def home_assistant_control(self, entity_id, action="toggle"):
-        url = f"http://localhost:8123/api/services/light/{action}"
+        url = f"{self.home_assistant_url}/api/services/light/{action}"
         if not self.token:
             print("Home Assistant token not found. Please set the HOME_ASSISTANT_TOKEN environment variable.")
             logging.error("Home Assistant token not found. Please set the HOME_ASSISTANT_TOKEN environment variable.")
@@ -268,64 +273,14 @@ class HomeAssistantControl:
                 else:
                     self.home_assistant_control(entity_id, "toggle")
         elif "weather" in command:
-            self.handle_weather_query(command)
+            self.handle_weather_query("weather.your_weather_entity_id")  # Replace with the actual entity ID
         else:
             logging.warning(f"Unknown home command: {command}")
 
-    def handle_weather_query(self, command):
-        """Handles weather queries by fetching data from Home Assistant."""
-        weather_entity = "sensor.weather"  # Change this to your actual weather entity
-
-        headers = {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json"
-        }
-
-        try:
-            response = requests.get(f"{self.home_assistant_url}/{weather_entity}", headers=headers)
-            response.raise_for_status()
-
-            weather_data = response.json()
-            if "state" not in weather_data:
-                raise ValueError("Weather entity is missing state information.")
-
-            # Extract relevant data
-            temperature = weather_data["state"]
-            attributes = weather_data.get("attributes", {})
-            condition = attributes.get("condition", "not available")
-            humidity = attributes.get("humidity", "not available")
-
-            weather_report = (
-                f"The current temperature is {temperature}°F with {condition}. "
-                f"Humidity is {humidity}%."
-            )
-            print(weather_report)
-            logging.info(weather_report)
-            self.speak(weather_report)
-
-        except (requests.exceptions.RequestException, ValueError) as e:
-            error_message = f"Error fetching weather: {e}"
-            print(error_message)
-            logging.error(error_message)
-            self.speak("Sorry, I couldn't fetch the weather.")
-
-    def process_home_command_with_ai(self, model):
-        print("Activating home automation...")
-        logging.info("Activating home automation...")
-        # Use previous methods to control Home Assistant
-        self.home_assistant_control("light.living_room", "turn_on")
-        self.home_assistant_control("fan.ceiling_fan", "turn_on")
-        # Listen for a command
-        self.talk(model)
-
-    def extract_entity_id(self, command, action=None):
+    def extract_entity_id(self, command):
         entity_map = {
             "light": "light.living_room",
             "fan": "fan.ceiling_fan",
-            "thermostat": "climate.thermostat",
-            "tv": "media_player.tv",
-            "speaker": "media_player.kitchen_speaker",
-            "weather": "sensor.weather",
         }
 
         for key, entity_id in entity_map.items():
@@ -333,8 +288,7 @@ class HomeAssistantControl:
                 return entity_id
 
         print(f"Entity ID not found for command: {command}")
-        logging.warning(f"Entity ID not found for {action} in command: {command}")
-
+        logging.warning(f"Entity ID not found in command: {command}")
         return None
 
 class AuralThread:
@@ -365,17 +319,13 @@ class ConsoleStream:
         self.text_widget.insert(tk.END, text + "\n")
         self.text_widget.see(tk.END)  # Auto-scroll to the bottom
 
-    def flush(self):
-        pass
-
-    def close(self):
-        pass
-
 class AuralInterface:
     def __init__(self):
         # Create the main window
         self.window = tk.Tk()
         self.window.title("Aural Interface")
+
+        self.home = HomeAssistantControl(self.window)
 
         # Create a label for the logo
         logo_label = tk.Label(self.window, text="Aural", font=("Arial", 24))
@@ -394,6 +344,17 @@ class AuralInterface:
         self.date_label = tk.Label(self.window, text=f"Current Date: {self.date}", font=("Arial", 12))
         self.date_label.pack(pady=5)
 
+        # Create a label for the location
+        self.location_label = tk.Label(self.window, text=f"Location {self.get_geolocation()}", font=("Arial", 12))
+        self.location_label.pack(pady=5)
+
+        # Create a label for the weather
+        self.weather_label = tk.Label(self.window, text="Weather Report", font=("Arial", 12))
+        self.weather_label.pack(pady=5)
+        
+        # Call check_weather() after the label is created
+        self.check_weather()
+
         # Create a button to start Aural
         start_button = tk.Button(self.window, text="Start Aural", command=self.start_aural)
         start_button.pack(pady=10)
@@ -402,9 +363,21 @@ class AuralInterface:
         stop_button = tk.Button(self.window, text="Stop Aural", command=self.stop_aural)
         stop_button.pack(pady=10)
 
-        # Create a label to pause Aural
+        # Create a button to pause Aural
         pause_button = tk.Button(self.window, text="Pause Aural", command=self.pause_aural)
         pause_button.pack(pady=10)
+
+        # Create a button to check the weather
+        weather_button = tk.Button(self.window, text="Check Weather", command=self.check_weather)
+        weather_button.pack(pady=10)
+
+        # Create a label for the weather
+        self.weather_label = tk.Label(self.window, text="Weather Report", font=("Arial", 12))
+        self.weather_label.pack(pady=5)
+
+        # Create a button to send the user input
+        send_button = tk.Button(self.window, text="Send", command=self.send_input)
+        send_button.pack(pady=10)
 
         # Create a label for current location
         self.location_label = tk.Label(self.window, text=f"Current Location: {self.get_geolocation()}", font=("Arial", 12))
@@ -418,13 +391,13 @@ class AuralInterface:
         self.user_input = tk.Text(self.window, height=5, width=50)
         self.user_input.pack(pady=10)
 
+        # Create a button to send the user input
+        self.send_button = tk.Button(self.window, text="Send", command=self.send_input)
+        self.send_button.pack(pady=10)
+
         # Create pause event
         self.pause_event = threading.Event()
         self.pause_event.set()
-
-        # Create a button to send the user input
-        send_button = tk.Button(self.window, text="Send", command=self.send_input)
-        send_button.pack(pady=10)
 
         # Console redirection
         sys.stdout = ConsoleStream(self.text_widget)
@@ -442,6 +415,83 @@ class AuralInterface:
             args=(self.hotwords,),
             daemon=True
         ).start()
+
+    def turn_on_light(self):
+        entity_id = "light.living_room"  # Adjust as needed
+        self.home.home_assistant_control(entity_id, action="turn_on")
+
+    def turn_off_light(self):
+        entity_id = "light.living_room"  # Adjust as needed
+        self.home.home_assistant_control(entity_id, action="turn_off")
+
+    def turn_on_fan(self):
+        entity_id = "fan.ceiling_fan"  # Adjust as needed
+        self.home.home_assistant_control(entity_id, action="turn_on")
+
+    def turn_off_fan(self):
+        entity_id = "fan.ceiling_fan"  # Adjust as needed
+        self.home.home_assistant_control(entity_id, action="turn_off")
+
+    def update_time(self):
+        current_time = datetime.now().strftime("%I:%M %p")
+        self.time_label.config(text=f"Current Time: {current_time}")
+        self.window.after(1000, self.update_time)
+
+    def update_time(self):
+        current_time = datetime.now().strftime("%I:%M %p")
+        self.time_label.config(text=f"Current Time: {current_time}")
+        self.window.after(1000, self.update_time)
+
+    def extract_city_state(self, location_string):
+        # Attempt to extract city and state using regex
+        pattern = r'City of ([^,]+),\s*([^,]+)$'  # Matches "City of Syracuse, New York"
+        match = re.search(pattern, location_string)
+        
+        if match:
+            city = match.group(1).strip()  # City
+            state = match.group(2).strip()  # State
+            return f"{city}, {state}"
+        else:
+            print("No city and state found...")
+            return None  # Default location if not found
+
+    def extract_zip(self, location_string):
+        # Regex to find the ZIP code
+        match = re.search(r'(\d{5})', location_string)
+        return match.group(1) if match else "13202"  # Default ZIP code
+
+    async def async_check_weather(self):
+        location_string = self.get_geolocation()
+        city_state = self.extract_city_state(location_string)
+        if not city_state:
+            # Use zip code instead
+            city_state = self.extract_zip(location_string)
+                
+        # Decide which to use based on preference
+        print(f"Checking weather for city and state: {city_state}")  # Expected: "Syracuse, NY"
+        print(f"Checking weather for ZIP code: {city_state}")  # Expected: "13202"
+        
+        async with python_weather.Client(unit=python_weather.IMPERIAL) as client:
+            try:
+                weather = await client.get(city_state)  # or use city_state
+                print(weather)  # Debug output
+                temperature = weather.temperature
+                self.aural.speak(f"The current temperator is {temperature} degrees.")
+                print(f"The current temperature is {temperature} degrees.")
+                self.weather_label.config(text=f"The current temperature is {temperature} degrees.")
+            except Exception as e:
+                print(f"Error fetching weather data: {e}")
+                logging.error(f"Error fetching weather data: {e}")
+
+    def check_weather(self):
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.async_check_weather())
+
+    def run(self):
+        """Run the GUI main loop."""
+        self.window.mainloop()
+        sys.stdout = sys.__stdout__
 
     def start_aural(self):
         """Start the hotword detection."""
@@ -461,21 +511,21 @@ class AuralInterface:
 
     def get_geolocation(self):
         latlng = self.get_ip_location()
-        if latlng is not None:
+        if latlng:
             geolocator = Nominatim(user_agent="Aural")
             try:
                 location = geolocator.reverse(latlng, exactly_one=True)
                 if location:
-                    return location
+                    print(f"Location found: {location}")
+                    return location.address
                 else:
-                    print("No location found for the given coordinates.")
-                    return None
+                    return "weather.default_location"
             except Exception as e:
-                print(f"Error during reverse geocoding: {e}")
-                return None
+                print(f"Error during reverse geocoding: {e}, using default location.")
+                return "weather.default_location"
         else:
-            print("Unable to retrieve location from IP.")
-            return None
+            print("Unable to retrieve location, using default location.")
+            return "weather.default_location"
 
     def send_input(self):
         """Send user input from the text box to the send_message function."""
@@ -527,18 +577,6 @@ class AuralInterface:
     def pause_aural(self):
         print("Pausing Aural...")
         self.pause_event.clear()
-
-    def update_time(self):
-        current_time = datetime.now().strftime("%I:%M %p")
-        self.time_label.config(text=f"Current Time: {current_time}")
-        self.window.after(1000, self.update_time)
-
-    def run(self):
-        """Run the GUI main loop."""
-        self.window.mainloop()
-
-        # Close the console redirection
-        sys.stdout = sys.__stdout__
 
 # Create and run the GUI
 if __name__ == "__main__":
