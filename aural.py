@@ -343,6 +343,14 @@ class AuralInterface:
         self.date_label = tk.Label(self.window, text=f"Current Date: {datetime.now().strftime('%A, %B %d, %Y')}", font=("Arial", 12))
         self.date_label.pack(pady=5)
 
+        # Create a label for location
+        self.location_label = tk.Label(self.window, text=f"Location: {self.get_geolocation()}", font=("Arial", 12))
+        self.location_label.pack(pady=5)
+
+        # Create a label for the weather
+        self.weather_label = tk.Label(self.window, text=f"Weather: {self.check_weather()}", font=("Arial", 12))
+        self.weather_label.pack(pady=5)
+
         # Button frame
         button_frame = tk.Frame(self.window)
         button_frame.pack(pady=10)
