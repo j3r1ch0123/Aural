@@ -476,7 +476,7 @@ class AuralInterface:
                 weather = await client.get(city_state)  # or use city_state
                 print(weather)  # Debug output
                 temperature = weather.temperature
-                self.aural.speak(f"The current temperator is {temperature} degrees.")
+                self.aural.speak(f"The current temperature is {temperature} degrees.")
                 print(f"The current temperature is {temperature} degrees.")
                 self.weather_label.config(text=f"The current temperature is {temperature} degrees.")
             except Exception as e:
