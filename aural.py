@@ -345,13 +345,13 @@ class AuralInterface:
         self.date_label.pack(pady=5)
 
         # Create a label for the location
-        self.location_label = tk.Label(self.window, text=f"Location {self.get_geolocation()}", font=("Arial", 12))
+        self.location_label = tk.Label(self.window, text=f"Location: {self.get_geolocation()}", font=("Arial", 12))
         self.location_label.pack(pady=5)
 
         # Create a label for the weather
         self.weather_label = tk.Label(self.window, text="Weather Report", font=("Arial", 12))
         self.weather_label.pack(pady=5)
-        
+
         # Call check_weather() after the label is created
         self.check_weather()
 
@@ -371,33 +371,17 @@ class AuralInterface:
         weather_button = tk.Button(self.window, text="Check Weather", command=self.check_weather)
         weather_button.pack(pady=10)
 
-        # Create a label for the weather
-        self.weather_label = tk.Label(self.window, text="Weather Report", font=("Arial", 12))
-        self.weather_label.pack(pady=5)
-
-        # Create a button to send the user input
-        send_button = tk.Button(self.window, text="Send", command=self.send_input)
-        send_button.pack(pady=10)
-
-        # Create a label for current location
-        self.location_label = tk.Label(self.window, text=f"Current Location: {self.get_geolocation()}", font=("Arial", 12))
-        self.location_label.pack(pady=5)
-
         # Text widget for logs
         self.text_widget = tk.Text(self.window, wrap=tk.WORD, state=tk.NORMAL)
         self.text_widget.pack(expand=True, fill=tk.BOTH, pady=10)
-
-        # Create a text box for user input
-        self.user_input = tk.Text(self.window, height=5, width=50)
-        self.user_input.pack(pady=10)
 
         # Create a button to send the user input
         self.send_button = tk.Button(self.window, text="Send", command=self.send_input)
         self.send_button.pack(pady=10)
 
-        # Create pause event
-        self.pause_event = threading.Event()
-        self.pause_event.set()
+        # Create a text box for user input
+        self.user_input = tk.Text(self.window, height=5, width=50)  # Adjusted height for better usability
+        self.user_input.pack(pady=10)
 
         # Console redirection
         sys.stdout = ConsoleStream(self.text_widget)
@@ -479,6 +463,8 @@ class AuralInterface:
                 self.aural.speak(f"The current temperature is {temperature} degrees.")
                 print(f"The current temperature is {temperature} degrees.")
                 self.weather_label.config(text=f"The current temperature is {temperature} degrees.")
+                logging.info(f"The current temperature is {temperature} degrees.")
+
             except Exception as e:
                 print(f"Error fetching weather data: {e}")
                 logging.error(f"Error fetching weather data: {e}")
