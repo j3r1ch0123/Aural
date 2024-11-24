@@ -8,8 +8,10 @@ import tempfile
 import logging
 import pygame
 import threading
+import geocoder
 import tkinter as tk
 import speech_recognition as sr
+from geopy.geocoders import Nominatim
 from datetime import datetime
 from deep_translator import GoogleTranslator
 from ollama_python.endpoints import GenerateAPI, ModelManagementAPI
@@ -404,6 +406,10 @@ class AuralInterface:
         pause_button = tk.Button(self.window, text="Pause Aural", command=self.pause_aural)
         pause_button.pack(pady=10)
 
+        # Create a label for current location
+        self.location_label = tk.Label(self.window, text=f"Current Location: {self.get_geolocation()}", font=("Arial", 12))
+        self.location_label.pack(pady=5)
+
         # Text widget for logs
         self.text_widget = tk.Text(self.window, wrap=tk.WORD, state=tk.NORMAL)
         self.text_widget.pack(expand=True, fill=tk.BOTH, pady=10)
@@ -445,6 +451,31 @@ class AuralInterface:
             args=(self.hotwords,),
             daemon=True
         ).start()
+
+    def get_ip_location(self):
+        # Get latitude and longitude from IP address
+        geolocation = geocoder.ip("me")
+        latlng = geolocation.latlng
+        print(f"Retrieved latitude and longitude: {latlng}")
+        return latlng  # Returns a list of [latitude, longitude]
+
+    def get_geolocation(self):
+        latlng = self.get_ip_location()
+        if latlng is not None:
+            geolocator = Nominatim(user_agent="Aural")
+            try:
+                location = geolocator.reverse(latlng, exactly_one=True)
+                if location:
+                    return location
+                else:
+                    print("No location found for the given coordinates.")
+                    return None
+            except Exception as e:
+                print(f"Error during reverse geocoding: {e}")
+                return None
+        else:
+            print("Unable to retrieve location from IP.")
+            return None
 
     def send_input(self):
         """Send user input from the text box to the send_message function."""
