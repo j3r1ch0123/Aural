@@ -5,3 +5,5 @@ pyaudio
 speechrecognition
 deep_translator
 ollama-python
+geopy
+geocoder
