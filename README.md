@@ -1,76 +1,56 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
-    <h1>Aural</h1>
-    <p>A Python program designed to let the user talk to their locally hosted AI and interact with home automation systems.</p>
-    <p><strong>Now comes with a GUI.</strong></p>
-    <p>Aural is a Python-based voice-interactive AI assistant that utilizes speech recognition, text-to-speech technologies, and local AI models (such as Dolphin Mistral) hosted via the Ollama API. The program allows you to speak to the assistant, which processes your input, responds with speech, and can interact with services like weather reports and home automation systems (via Home Assistant).</p>
+# Aural
 
-    <h2>Features</h2>
-    <ul>
-        <li><strong>Voice Input:</strong> The assistant listens for your speech using your microphone and recognizes hotwords (like "hey llama").</li>
-        <li><strong>Text-to-Speech Output:</strong> The assistant converts its response to speech and plays it.</li>
-        <li><strong>Home Automation Control:</strong> Interact with smart home devices (like lights, fans, thermostats, etc.) via Home Assistant.</li>
-        <li><strong>Weather Queries:</strong> Ask the assistant about the current weather, and it will retrieve accurate weather data using OpenWeatherMap. <em>(Work in progress)</em></li>
-        <li><strong>Multi-language Hotword Support:</strong> The assistant supports hotwords in multiple languages, making it more flexible for non-English speakers.</li>
-        <li><strong>GUI:</strong> A user-friendly graphical interface for easy interaction.</li>
-    </ul>
+Aural is a Python-based voice-interactive AI assistant that utilizes speech recognition, text-to-speech technologies, and locally hosted AI models via the Ollama API. It features a graphical user interface (GUI) for easy interaction and supports both voice and text input. Aural integrates with Home Assistant to control smart devices and offers weather updates based on your location.
 
-    <h2>Installation</h2>
-    <h3>For Linux/macOS</h3>
-    <ol>
-        <li>Clone the repository:
-            <pre><code>git clone https://github.com/j3r1ch0123/Aural.git
-cd Aural</code></pre>
-        </li>
-        <li>Create and activate a virtual environment:
-            <pre><code>python3 -m venv venv
-source venv/bin/activate</code></pre>
-        </li>
-        <li>Install the dependencies:
-            <pre><code>pip install -r requirements.txt</code></pre>
-        </li>
-        <li>Alternatively, run the provided install script:
-            <pre><code>bash install.sh</code></pre>
-        </li>
-        <li>Ensure the Ollama API is running locally, and the required models are installed:
-            <pre><code>ollama serve</code></pre>
-        </li>
-        <li>Run the program:
-            <pre><code>python aural.py</code></pre>
-        </li>
-    </ol>
+---
 
-    <h3>For Windows</h3>
-    <ol>
-        <li>Clone the repository:
-            <pre><code>git clone https://github.com/j3r1ch0123/Aural.git
-cd Aural</code></pre>
-        </li>
-        <li>Create and activate a virtual environment:
-            <pre><code>python -m venv venv
-venv\Scripts\activate</code></pre>
-        </li>
-        <li>Install the dependencies:
-            <pre><code>pip install -r requirements.txt</code></pre>
-        </li>
-        <li>Download and install the Ollama API for Windows from <a href="https://ollama.com" target="_blank">https://ollama.com</a>.</li>
-        <li>Pull the required models:
-            <pre><code>ollama pull llama3.2
-ollama pull dolphin-mistral
-ollama pull fixt/home-3b-v3</code></pre>
-        </li>
-        <li>Start the Ollama API:
-            <pre><code>ollama serve</code></pre>
-        </li>
-        <li>Run the program:
-            <pre><code>python aural.py</code></pre>
-        </li>
-    </ol>
+## Features
+
+### AI Interaction
+- **Voice Recognition:** Hotword-based interaction ("Hey Llama", "Hey Dolphin", etc.).
+- **Text Input:** For situations where the microphone is unavailable.
+- **Local AI Models:** Works with models like Llama3.2, Dolphin-Mistral, and Fixt/Home-3b-v3 via the Ollama API.
+
+### GUI Interface
+- **Interactive Dashboard:** Includes buttons for key actions (e.g., controlling lights, fans, checking the weather).
+- **Dynamic Updates:** Displays current time, date, weather, and location in real-time.
+- **Log Console:** View all interactions directly in the GUI.
+
+### Home Automation
+- **Control Smart Devices:** Manage lights, fans, and other appliances through Home Assistant with a single click or voice command.
+- **Customizable Entities:** Easily configure smart devices by updating entity IDs.
+
+### Weather Updates
+- **Location-Based Weather:** Fetch real-time weather based on your geolocation.
+- **Multiple Data Sources:** Automatically switches between city, state, or ZIP code as needed.
+
+### Multi-Language Support
+- **Hotwords Translation:** Recognizes hotwords in multiple languages using Google Translator.
+- **Global Compatibility:** Ensures accessibility for non-English speakers.
+
+### Extensible Design
+- **Backup API Integration:** Automatically switches to a backup API if the primary one fails.
+- **Custom Models:** Select and integrate models based on user preferences.
+
+---
+
+## Installation
+
+### Prerequisites
+- Python 3.11 or higher
+- Pip
+- Ollama API installed and running locally
+- Home Assistant (optional, for smart home integration)
+
+### Steps
+#### For Linux/macOS
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/j3r1ch0123/Aural.git
+   cd Aural
+   bash install.sh
+   bash run.sh
+    ```
 
     <h2>How to Use</h2>
     <ol>
@@ -89,6 +69,50 @@ ollama pull fixt/home-3b-v3</code></pre>
         <li><strong>googletrans:</strong> For multi-language support of hotwords.</li>
         <li><strong>OpenWeatherMap API:</strong> For fetching real-time weather data.</li>
     </ul>
+
+    <h2>For Windows</h2>
+    Clone the repository:
+
+bash
+git clone https://github.com/j3r1ch0123/Aural.git
+cd Aural
+Create and activate a virtual environment:
+
+bash
+python -m venv venv
+venv\Scripts\activate
+Install dependencies:
+
+bash
+pip install -r requirements.txt
+Install the Ollama API for Windows and pull required models:
+
+bash
+
+ollama pull llama3.2
+ollama pull dolphin-mistral
+ollama pull fixt/home-3b-v3
+ollama serve
+Start the program:
+
+bash
+Copy code
+python aural.py
+How to Use
+Start Aural: Use the GUI or terminal to initiate the program.
+Hotword Detection: Speak one of the configured hotwords (e.g., "Hey Llama").
+Home Automation: Control smart devices using buttons in the GUI or voice commands.
+Weather Check: Use the "Check Weather" button or ask about the weather using voice/text input.
+Log Interaction: All interactions are displayed in the log console for transparency.
+Dependencies
+speechrecognition: Speech-to-text functionality.
+pygame: Audio playback.
+gTTS: Text-to-speech functionality.
+requests: API communication.
+googletrans: Multi-language hotword support.
+python-weather: Weather updates.
+geopy, geocoder: Location services.
+
 
     <h2>Contributing</h2>
     <p>Feel free to fork this repository and contribute to improving the assistant. Pull requests are welcome!</p>
