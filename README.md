@@ -73,71 +73,76 @@ Aural is a Python-based voice-interactive AI assistant that utilizes speech reco
     <h2>For Windows</h2>
     Clone the repository:
 
-bash
+   - bash
 
-git clone https://github.com/j3r1ch0123/Aural.git
+   - git clone https://github.com/j3r1ch0123/Aural.git
 
-cd Aural
+   - cd Aural
 
-Create and activate a virtual environment:
+   - Create and activate a virtual environment:
 
-bash
+   - bash
 
-python -m venv venv
+   - python -m venv venv
 
-venv\Scripts\activate
+   - venv\Scripts\activate
 
-Install dependencies:
+   - Install dependencies:
 
-bash
+   bash
+   
+   pip install -r requirements.txt
+   
+   Install the Ollama API for Windows and pull required models:
+   
+   bash
+   ```
+   
+   ollama pull llama3.2
+   
+   ollama pull dolphin-mistral
+   
+   ollama pull fixt/home-3b-v3
+   
+   ollama serve
+   ```
+   
+   Start the program:
+   
+   bash
+   ```
+   
+   python aural.py
 
-pip install -r requirements.txt
-
-Install the Ollama API for Windows and pull required models:
-
-bash
-
-ollama pull llama3.2
-
-ollama pull dolphin-mistral
-
-ollama pull fixt/home-3b-v3
-
-ollama serve
-
-Start the program:
-
-bash
-
-python aural.py
-
-How to Use
-
-Start Aural: Use the GUI or terminal to initiate the program.
-
-Hotword Detection: Speak one of the configured hotwords (e.g., "Hey Llama").
-
-Home Automation: Control smart devices using buttons in the GUI or voice commands.
-
-Weather Check: Use the "Check Weather" button or ask about the weather using voice/text input.
-
-Log Interaction: All interactions are displayed in the log console for transparency.
-
-Dependencies
-
-speechrecognition: Speech-to-text functionality.
-
-pygame: Audio playback.
-
-gTTS: Text-to-speech functionality.
-
-requests: API communication.
-
-googletrans: Multi-language hotword support.
-
-python-weather: Weather updates.
-
-geopy, geocoder: Location services.
+   ```
+   
+   How to Use
+   
+   Start Aural: Use the GUI or terminal to initiate the program.
+   
+   Hotword Detection: Speak one of the configured hotwords (e.g., "Hey Llama").
+   
+   Home Automation: Control smart devices using buttons in the GUI or voice commands.
+   
+   Weather Check: Use the "Check Weather" button or ask about the weather using voice/text input.
+   
+   Log Interaction: All interactions are displayed in the log console for transparency.
+   
+   Dependencies
+   
+   speechrecognition: Speech-to-text functionality.
+   
+   pygame: Audio playback.
+   
+   gTTS: Text-to-speech functionality.
+   
+   requests: API communication.
+   
+   googletrans: Multi-language hotword support.
+   
+   python-weather: Weather updates.
+   
+   geopy, geocoder: Location services.
 
 
     <h2>Contributing</h2>
