@@ -62,6 +62,10 @@ class Aural:
                                 elif "hey dolphin" in text or "dolphin are you there" in text or "dolphin" in text:
                                     model = "dolphin-mistral"
                                     self.talk(model)
+                                
+                                elif "hey deepseek" in text or "deepseek are you there" in text or "deepseek" in text:
+                                    model = "deepseek-r1:8b"
+                                    self.talk(model)
 
                                 elif "exit" in text:
                                     print("Exiting hotword detection.")
@@ -132,6 +136,9 @@ class Aural:
             text = response.json()["choices"][0]["message"]["content"]
             print("AI Response:", text)
             logging.info(f"AI Response: {text}")
+            # Use regex to filter out the <think> tags if the model is deepseek
+            if model == "deepseek-r1:8b":
+                text = re.sub(r"<think>(.*?)</think>", "", text)
 
             self.speak(text)  # Provide verbal feedback to the user
 
@@ -162,7 +169,7 @@ class Aural:
         os.remove(temp_file.name)
 
     def create_api_url(self, model):
-        supported_models = ["llama3.2", "dolphin-mistral"]
+        supported_models = ["llama3.2", "dolphin-mistral", "deepseek-r1:8b"]
         if model not in supported_models:
             raise ValueError(f"Unsupported model: {model}. Supported models: {supported_models}")
         else:
@@ -399,7 +406,8 @@ class AuralInterface:
         self.aural = Aural()
         self.hotwords = [
             "hey llama", "llama", "llama are you there",
-            "hey dolphin", "dolphin", "dolphin are you there"
+            "hey dolphin", "dolphin", "dolphin are you there",
+            "hey deepseek", "deepseek", "deepseek are you there"
         ]
 
         # Start hotword detection in a separate thread
@@ -536,7 +544,7 @@ class AuralInterface:
                 elif "exit" in user_input:
                     self.stop_aural()
                 else:
-                    model = "llama3.2" # Default to llama3.2
+                    model = "deepseek-r1:8b" # Default to deepseek
 
                 status_code = self.aural.send_message("http://localhost:11434/v1/chat/completions", user_input, model)
                 if status_code != 200:
