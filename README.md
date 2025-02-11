@@ -1,6 +1,6 @@
 # Aural
 
-Aural is a Python-based voice-interactive AI assistant that utilizes speech recognition, text-to-speech technologies, and locally hosted AI models via the Ollama API. It features a graphical user interface (GUI) for easy interaction and supports both voice and text input. Aural integrates with Home Assistant to control smart devices and offers weather updates based on your location.
+Aural is a Python-based voice-interactive AI assistant that utilizes speech recognition, text-to-speech technologies, and locally hosted AI models via the Ollama API. It features a graphical user interface (GUI) for easy interaction and supports both voice and text input. Aural integrates with Home Assistant to control smart devices and offers weather updates based on your location. Now uses deepseek too.
 
 ---
 
