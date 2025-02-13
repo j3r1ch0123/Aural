@@ -1,6 +1,7 @@
 requests
 gtts
 pygame
+pyaudio
 geocoder
 python-weather
 speechrecognition
