@@ -1,24 +1,18 @@
 {
-<<<<<<< Updated upstream
   "SPEECH_TIMEOUT": 5,
   "PHRASE_TIME_LIMIT": 10,
-=======
-  "SPEECH_TIMEOUT": 10,
-  "PHRASE_TIME_LIMIT": 15,
->>>>>>> Stashed changes
   "HOTWORDS": {
-    "llama": ["hey llama", "llama", "llama are you there"],
-    "dolphin": ["hey dolphin", "dolphin", "dolphin are you there"],
+    "llama": ["hey llama", "llama", "llama are you there", "llama"],
+    "dolphin": ["hey dolphin", "dolphin", "dolphin are you there", "dolphin"],
     "deepseek": ["hey deepseek", "deepseek", "deepseek are you there", "deep"]
   },
   "SUPPORTED_MODELS": {
-    "llama": "llama",
-    "dolphin": "dolphin",
-    "deepseek": "deepseek"
+    "llama": "llama3.2",
+    "dolphin": "dolphin-mistral",
+    "deepseek": "deepseek-r1:14b"
   }
 }
-<<<<<<< Updated upstream
-=======
+
 {
     "API_KEYS": {
         "NEWSAPI": "your_key_here",
@@ -29,4 +23,3 @@
         "TABLE": "research_results"
     }
 }
->>>>>>> Stashed changes
