@@ -22,6 +22,7 @@ from ollama_python.endpoints import GenerateAPI, ModelManagementAPI
 
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
+from config import config
 
 @dataclass
 class AIResponse:
@@ -43,10 +44,13 @@ class Aural:
         self.home_assistant_token: Optional[str] = None
         self.home_assistant_url: Optional[str] = None
         pygame.mixer.init()
-        
+
         # Configure logging
         self._setup_logging()
-        
+
+        # Hotword detection configuration
+        self.config = config
+
         self.home_assistant_control = HomeAssistantControl()
         
     def _setup_logging(self) -> None:
@@ -425,11 +429,11 @@ class HomeAssistantControl:
             entity_id = self.extract_entity_id(command)
             if entity_id:
                 if "turn on" in command:
-                    self.home_assistant_control(entity_id, "turn_on")
+                    self.home_assistant_control(entity_id, action="turn_on")
                 elif "turn off" in command:
-                    self.home_assistant_control(entity_id, "turn_off")
+                    self.home_assistant_control(entity_id, action="turn_off")
                 else:
-                    self.home_assistant_control(entity_id, "toggle")
+                    self.home_assistant_control(entity_id, action="toggle")
         elif "weather" in command:
             self.handle_weather_query("weather.your_weather_entity_id")  # Replace with the actual entity ID
         else:
