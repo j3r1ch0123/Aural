@@ -230,7 +230,7 @@ class Aural:
             if not model.endswith(":latest") and not model.startswith("deepseek"):
                 model += ":latest"
             elif model.startswith("deepseek"):
-                model = "deepseek-r1:14b"
+                model = "deepseek-r1:8b"
 
             payload = {
                 "model": model,
