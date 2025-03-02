@@ -61,8 +61,12 @@ class Config:
         self.SPEECH_TIMEOUT = 5
         self.PHRASE_TIME_LIMIT = 10
         self.HOTWORDS = {}
-        self.SUPPORTED_MODELS = {}
-
+        self.SUPPORTED_MODELS = {
+            "llama3.2": "llama3.2:latest",
+            "dolphin-mistral": "dolphin-mistral:latest",
+            "deepseek-r1:8b": "deepseek-r1:8b"
+        }
+            
 config = Config()
 
 @dataclass
@@ -85,6 +89,7 @@ class Aural:
         self.listening: bool = True
         self.lock: threading.Lock = threading.Lock()
         self.relationship_context = {}
+        self.current_model = None
 
         # Change these values if you want to use the home assistant control
         self.home_assistant_token: Optional[str] = None
@@ -123,7 +128,7 @@ class Aural:
         logging.info("Aural initialized.")
 
     def hotword_detection(self, hotwords: List[str]) -> None:
-        """Listen for hotwords and trigger appropriate model responses."""
+        """Listen for hotwords to initiate conversation."""
         recognizer = sr.Recognizer()
         print("Starting hotword detection...")
 
@@ -149,21 +154,7 @@ class Aural:
 
                             if any(hotword in text for hotword in hotwords):
                                 print("Hotword detected!")
-                                # Choose the model based on the hotword
-                                if "dolphin" in text:
-                                    model_name = "dolphin-mistral"
-                                elif "deepseek" in text or "deep" in text:
-                                    model_name = "deepseek-r1:8b"
-                                else:
-                                    model_name = "llama3.2"
-                                selected_model = config.SUPPORTED_MODELS.get(model_name, model_name)
-                                print(f"Using model: {selected_model} for recognized text: {text}")
-                                logging.info(f"Using model: {selected_model} for recognized text: {text}")
-                                if not selected_model:
-                                    selected_model = config.SUPPORTED_MODELS.get("llama3.2", "llama3.2:latest")
-                                print(f"Using model: {selected_model} for recognized text: {text}")
-                                logging.info(f"Using model: {selected_model} for recognized text: {text}")
-                                self.talk(selected_model)
+                                self.talk(self.current_model)
                                 return
 
                         except sr.WaitTimeoutError:
@@ -177,6 +168,14 @@ class Aural:
                             time.sleep(0.1)
         except Exception as e:
             print(f"Error with microphone: {e}")
+    
+    def select_model(self, model: str) -> None:
+        """Handle model selection from dropdown"""
+        if model in config.SUPPORTED_MODELS:
+            self.current_model = model
+            print(f"Selected model: {model}")
+        else:
+            print("Invalid model selected")
 
     def translate_hotwords(self, hotwords: List[str], target_languages: List[str] = None) -> List[str]:
         """Translate hotwords into specified target languages.
@@ -218,51 +217,41 @@ class Aural:
 
         return translated_hotwords
 
-    def send_message(self, url: str, message: str, model: str) -> Optional[int]:
+    def send_message(self, url: str, message: str, model: str) -> Optional[AIResponse]:
         if not message or message.isspace():
             print("Warning: No message to send")
             return None
 
-        self.conversation_history.append({"role": "user", "content": message})
-
         try:
-            # Ensure the model name is correctly formatted
-            if not model.endswith(":latest") and not model.startswith("deepseek"):
-                model += ":latest"
-            elif model.startswith("deepseek"):
-                model = "deepseek-r1:8b"
-
-            payload = {
-                "model": model,
-                "prompt": message,
-                "stream": True
-            }
-
-            response = requests.post(url, json=payload)
+            response = requests.post(
+                url,
+                json={
+                    "model": model,
+                    "prompt": message,
+                    "stream": True
+                },
+                stream=True
+            )
 
             if response.status_code == 200:
-                try:
-                    response_data = response.json()
-                    self.process_response(response_data["response"], model)
-                    return response.status_code
-                except json.JSONDecodeError:
-                    # Handle streaming response
-                    response_text = response.text.strip()
-                    if response_text:
+                full_response = ""
+                print("Aural: ", end="")
+                for line in response.iter_lines():
+                    if line:
                         try:
-                            # Try parsing each line as separate JSON
-                            responses = [json.loads(line) for line in response_text.split('\n') if line]
-                            combined_response = ''.join(r.get('response', '') for r in responses)
-                            self.process_response(combined_response, model)
-                            return response.status_code
-                        except json.JSONDecodeError as e:
-                            print(f"Failed to parse streaming response: {str(e)}")
-                            return None
+                            chunk = json.loads(line)
+                            response_text = chunk.get("response", "")
+                            full_response += response_text
+                            print(response_text, end="", flush=True)
+                        except json.JSONDecodeError:
+                            continue
+                print("\n")  # Add newline after response
+                return AIResponse(text=full_response, status_code=response.status_code)
             else:
-                print(f"API request failed with status code: {response.status_code}")
-                return None
+                print(f"\nAPI request failed with status code: {response.status_code}")
+                return AIResponse(text="", status_code=response.status_code)
         except Exception as e:
-            print(f"API request failed: {str(e)}")
+            print(f"\nError sending message: {e}")
             return None
 
     def process_response(self, response: str, model: str) -> None:
@@ -378,52 +367,55 @@ class Aural:
 
         return "http://localhost:11434/api/generate"  # Update if model-specific URLs are needed
 
-    def talk(self, model: str) -> None:
-        """Start a conversation with the AI model."""
+    def talk(self, model_name: Optional[str] = None) -> None:
+        """Handle continuous conversation with the selected AI model."""
+        model = model_name or self.current_model
+        print(f"Using model: {model}")
+        logging.info(f"Using model: {model}")
+
         recognizer = sr.Recognizer()
-        logging.info(f"Starting conversation with model: {model}")
+        print("Say 'exit' to end the conversation")
 
-        try:
-            with sr.Microphone() as source:
-                print("Listening for a command...")
-                logging.info("Listening for a command...")
-                recognizer.adjust_for_ambient_noise(source)
+        while self.listening:
+            try:
+                with sr.Microphone() as source:
+                    print("Listening...")
+                    recognizer.adjust_for_ambient_noise(source)
+                    audio = recognizer.listen(source, timeout=config.SPEECH_TIMEOUT, phrase_time_limit=config.PHRASE_TIME_LIMIT)
 
-                try:
-                    audio = recognizer.listen(source, timeout=10, phrase_time_limit=20)
-                    logging.info("Audio captured successfully.")
-                    user_input = recognizer.recognize_google(audio)
-                    logging.info(f"You said: {user_input}")
-                    print("You said:", user_input)
+                    try:
+                        text = recognizer.recognize_google(audio)
+                        print(f"You said: {text}")
 
-                    if user_input and not user_input.isspace():
-                        api_response = self.send_message("http://localhost:11434/api/generate", user_input, model)
-                        if api_response is None:
-                            logging.error("API request failed. No response received.")
-                            print("API request failed. Please try again.")
-                    else:
-                        print("No valid input detected")
-                        logging.warning("No valid input detected")
+                        # Check for exit command
+                        if "exit" in text.lower():
+                            print("Ending conversation...")
+                            break
 
-                except sr.UnknownValueError:
-                    print("Could not understand audio")
-                    logging.warning("Speech recognition could not understand audio")
-                except sr.WaitTimeoutError:
-                    print("No speech detected within the timeout period.")
-                    logging.warning("No speech detected within timeout period")
-                except sr.RequestError as e:
-                    print(f"Could not request results: {e}")
-                    logging.error(f"Speech recognition request error: {e}")
-                except Exception as e:
-                    print(f"Error during speech recognition: {e}")
-                    logging.error(f"Speech recognition error: {e}")
+                        # Add user message to conversation history
+                        self.conversation_history.append({"role": "user", "content": text})
 
-        except OSError as e:
-            print(f"Microphone error: {e}")
-            logging.error(f"Microphone error: {e}")
-        except Exception as e:
-            print(f"Error starting conversation: {e}")
-            logging.error(f"Error starting conversation: {e}")
+                        # Get AI response
+                        response = self.send_message("http://localhost:11434/api/generate", text, model)
+                        if response and response.status_code == 200:
+                            # Add AI response to conversation history
+                            self.conversation_history.append({"role": "assistant", "content": response.text})
+                            print(f"Aural: {response.text}")
+
+                            # Speak the response
+                            self.speak(response.text)
+
+                    except sr.UnknownValueError:
+                        print("Could not understand audio")
+                    except sr.RequestError as e:
+                        print(f"Could not request results; {e}")
+
+            except KeyboardInterrupt:
+                print("\nConversation ended by user")
+                break
+            except Exception as e:
+                print(f"Error in talk method: {e}")
+                break
 
 class DeepResearch:
     def __init__(self):
@@ -697,6 +689,20 @@ class AuralInterface:
         mic_menu.set(mics[0] if mics else "No microphones found")
         mic_menu.pack(side=tk.LEFT, padx=5)
         
+        # Create model selection dropdown
+        self.model_var = tk.StringVar()
+        model_frame = tk.Frame(self.window)
+        model_frame.pack(pady=5)
+        
+        tk.Label(model_frame, text="Select AI Model:").pack(side=tk.LEFT, padx=5)
+        model_menu = ttk.Combobox(model_frame, textvariable=self.model_var)
+        model_menu['values'] = list(config.SUPPORTED_MODELS.keys())
+        model_menu.set(list(config.SUPPORTED_MODELS.keys())[0] if config.SUPPORTED_MODELS else "No models found")
+        model_menu.pack(side=tk.LEFT, padx=5)
+        
+        select_model_button = tk.Button(model_frame, text="Select Model", command=self.select_model)
+        select_model_button.pack(side=tk.LEFT, padx=5)
+
         # Create buttons and pack them side by side
         start_button = tk.Button(button_frame, text="Start Aural", command=self.start_aural)
         start_button.pack(side=tk.LEFT, padx=5)
@@ -986,6 +992,15 @@ class AuralInterface:
             print(f"URL: {result['url']}")
             print(f"Content: {result['content']}")
             print("\n")
+
+    def select_model(self):
+        """Handle model selection from dropdown"""
+        selected_model = self.model_var.get()
+        if selected_model in config.SUPPORTED_MODELS:
+            self.aural.select_model(selected_model)
+            print(f"Selected model: {selected_model}")
+        else:
+            print("Invalid model selected")
 
 # Create and run the GUI
 if __name__ == "__main__":
