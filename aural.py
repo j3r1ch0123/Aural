@@ -149,16 +149,22 @@ class Aural:
 
                             if any(hotword in text for hotword in hotwords):
                                 print("Hotword detected!")
-                                selected_model = None
-                                for model_name, wake_words in config.HOTWORDS.items():
-                                    if any(word in text for word in wake_words):
-                                        selected_model = config.SUPPORTED_MODELS[model_name]
-                                        logging.info(f"Selected model {model_name} based on hotwords")
-                                        break
+                                # Choose the model based on the hotword
+                                if "dolphin" in text:
+                                    model_name = "dolphin-mistral"
+                                elif "deepseek" in text:
+                                    model_name = "deepseek-r1:8b"
+                                else:
+                                    model_name = "llama3.2"
+                                selected_model = config.SUPPORTED_MODELS.get(model_name, model_name)
+                                print(f"Using model: {selected_model} for recognized text: {text}")
+                                logging.info(f"Using model: {selected_model} for recognized text: {text}")
                                 if not selected_model:
-                                    selected_model = "deepseek-r1:8b"
-                                    logging.info("Using default model: deepseek-r1:8b")
+                                    selected_model = config.SUPPORTED_MODELS.get("llama3.2", "llama3.2:latest")
+                                print(f"Using model: {selected_model} for recognized text: {text}")
+                                logging.info(f"Using model: {selected_model} for recognized text: {text}")
                                 self.talk(selected_model)
+                                return
 
                         except sr.WaitTimeoutError:
                             print("Listening timed out, no speech detected.")
@@ -171,8 +177,6 @@ class Aural:
                             time.sleep(0.1)
         except Exception as e:
             print(f"Error with microphone: {e}")
-        except Exception as e:
-            print(f"Error during hotword detection: {e}")
 
     def translate_hotwords(self, hotwords: List[str], target_languages: List[str] = None) -> List[str]:
         """Translate hotwords into specified target languages.
@@ -226,12 +230,12 @@ class Aural:
             if not model.endswith(":latest") and not model.startswith("deepseek"):
                 model += ":latest"
             elif model.startswith("deepseek"):
-                model = "deepseek-r1:8b"
+                model = "deepseek-r1:14b"
 
             payload = {
                 "model": model,
                 "prompt": message,
-                "stream": False
+                "stream": True
             }
 
             response = requests.post(url, json=payload)
@@ -425,7 +429,7 @@ class DeepResearch:
     def __init__(self):
         self.search_engines = ['google', 'wikipedia', 'news']
         self.max_results = 5
-        self.newsapi = newsapi.NewsApiClient(api_key=os.getenv('NEWS_API_KEY'))
+        self.newsapi = newsapi.NewsApiClient(api_key='YOUR_NEWSAPI_KEY')
         self.wiki = wikipediaapi.Wikipedia('en')
         
     def web_search(self, query):
@@ -761,8 +765,6 @@ class AuralInterface:
             "hey dolphin", "dolphin", "dolphin are you there",
             "hey deepseek", "deepseek", "deepseek are you there",
             "deep",
-            "research", "look up", "find information",
-            "search for", "investigate"
         ]
         
         # Schedule weather update after main loop starts
@@ -776,10 +778,6 @@ class AuralInterface:
             args=(self.hotwords,),
             daemon=True
         ).start()
-        
-        # Update weather
-        weather = self.check_weather()
-        self.weather_label.config(text=f"Weather: {weather}")
     
     def run(self) -> None:
         """Run the Aural assistant."""
@@ -966,9 +964,10 @@ class AuralInterface:
             try:
                 weather = await client.get(city_state)
                 temperature = weather.temperature
-                self.aural.speak(f'The current temperature is {temperature} degrees.')
-                self.weather_label.config(text=f'The current temperature is {temperature} degrees.')
-                logging.info(f'The current temperature is {temperature} degrees.')
+                # print(f"The current temperature is {temperature} degrees.")
+                # self.aural.speak(f'The current temperature is {temperature} degrees.')
+                # self.weather_label.config(text=f'The current temperature is {temperature} degrees.')
+                # logging.info(f'The current temperature is {temperature} degrees.')
             except Exception as e:
                 print(f'Error fetching weather data: {e}')
                 logging.error(f'Error fetching weather data: {e}')
