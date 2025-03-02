@@ -425,7 +425,7 @@ class DeepResearch:
     def __init__(self):
         self.search_engines = ['google', 'wikipedia', 'news']
         self.max_results = 5
-        self.newsapi = newsapi.NewsApiClient(api_key='YOUR_NEWSAPI_KEY')
+        self.newsapi = newsapi.NewsApiClient(api_key=os.getenv('NEWS_API_KEY'))
         self.wiki = wikipediaapi.Wikipedia('en')
         
     def web_search(self, query):
