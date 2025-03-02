@@ -5,6 +5,7 @@ import re
 import os
 import sys
 import time
+import json
 import gtts
 import tempfile
 import logging
@@ -19,22 +20,50 @@ from datetime import datetime
 from deep_translator import GoogleTranslator
 from ollama_python.endpoints import GenerateAPI, ModelManagementAPI
 
+from typing import Optional, List, Dict, Any
+from dataclasses import dataclass
+
+@dataclass
+class AIResponse:
+    """Data class to hold AI response information"""
+    text: str
+    status_code: int
+
 class Aural:
-    def __init__(self):
-        self.listening = True
-        self.lock = threading.Lock()
-        self.home_assistant_token = None
-        self.home_assistant_url = None
+    """Main class for the Aural AI assistant.
+    
+    Handles voice recognition, AI model interaction, and home automation control.
+    Supports multiple AI models and provides both voice and text interfaces.
+    """
+    
+    def __init__(self) -> None:
+        """Initialize the Aural assistant with necessary components and configurations."""
+        self.listening: bool = True
+        self.lock: threading.Lock = threading.Lock()
+        self.home_assistant_token: Optional[str] = None
+        self.home_assistant_url: Optional[str] = None
         pygame.mixer.init()
+        
+        # Configure logging
+        self._setup_logging()
+        
+        self.home_assistant_control = HomeAssistantControl()
+        
+    def _setup_logging(self) -> None:
+        """Configure logging settings for the application."""
         logging.basicConfig(
             filename='./aural.log',
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s'
         )
         logging.info("Aural initialized.")
-        self.home_assistant_control = HomeAssistantControl()
 
-    def hotword_detection(self, hotwords):
+    def hotword_detection(self, hotwords: List[str]) -> None:
+        """Listen for hotwords and trigger appropriate model responses.
+        
+        Args:
+            hotwords: List of wake words to listen for
+        """
         recognizer = sr.Recognizer()
         print("Starting hotword detection...")
 
@@ -48,34 +77,35 @@ class Aural:
                     with self.lock:
                         try:
                             # Listen for audio input
-                            audio = recognizer.listen(source, timeout=10, phrase_time_limit=10)
+                            audio = recognizer.listen(
+                                source, 
+                                timeout=config.SPEECH_TIMEOUT, 
+                                phrase_time_limit=config.PHRASE_TIME_LIMIT
+                            )
                             text = recognizer.recognize_google(audio).lower()
 
                             # Check for hotwords
-                            if any(hotword in text for hotword in hotwords):  # Use `hotwords` parameter
+                            if any(hotword in text for hotword in hotwords):
                                 print("Hotword detected!")
-
-                                if "hey llama" in text or "llama are you there" in text or "llama" in text:
-                                    model = "llama3.2"
-                                    self.talk(model)
-
-                                elif "hey dolphin" in text or "dolphin are you there" in text or "dolphin" in text:
-                                    model = "dolphin-mistral"
-                                    self.talk(model)
                                 
-                                elif "hey deepseek" in text or "deepseek are you there" in text or "deepseek" in text:
-                                    model = "deepseek-r1:8b"
-                                    self.talk(model)
-
-                                elif "exit" in text:
+                                # Find matching model from config
+                                selected_model = None
+                                for model_name, wake_words in config.HOTWORDS.items():
+                                    if any(word in text for word in wake_words):
+                                        selected_model = config.SUPPORTED_MODELS[model_name].name
+                                        break
+                                
+                                if "exit" in text:
                                     print("Exiting hotword detection.")
                                     self.listening = False
-                                    break  # Exit the loop
+                                    break
 
-                                else:
-                                    print("No matching hotword. Forwarding to API.")
-                                    model = "llama3.2"  # Default fallback model
-                                    self.talk(model)
+                                # Use default model if no specific match found
+                                if not selected_model:
+                                    print("No matching hotword. Using default model.")
+                                    selected_model = config.SUPPORTED_MODELS["llama"].name
+                                
+                                self.talk(selected_model)
 
                         except sr.WaitTimeoutError:
                             print("Listening timed out, no speech detected.")
@@ -93,10 +123,22 @@ class Aural:
             print(f"Error with microphone: {e}")
             logging.error(f"Microphone error: {e}")
 
-    def translate_hotwords(self, hotwords, target_languages=["es", "fr"]):
+    def translate_hotwords(self, hotwords: List[str], target_languages: List[str] = None) -> List[str]:
+        """Translate hotwords into specified target languages.
+        
+        Args:
+            hotwords: List of wake words to translate
+            target_languages: List of language codes to translate to. Defaults to ['es', 'fr']
+            
+        Returns:
+            List[str]: List of translated hotwords
+        """
+        if target_languages is None:
+            target_languages = ["es", "fr"]
+            
         translator = GoogleTranslator()
-        translated_cache = {}
-        translated_hotwords = []
+        translated_cache: Dict[str, List[str]] = {}
+        translated_hotwords: List[str] = []
 
         for lang in target_languages:
             if lang in translated_cache:
@@ -104,7 +146,7 @@ class Aural:
                 translated_hotwords.extend(translated_cache[lang])
                 continue
 
-            lang_translations = []
+            lang_translations: List[str] = []
             for hotword in hotwords:
                 try:
                     translation = translator.translate(hotword, dest=lang)
@@ -121,55 +163,164 @@ class Aural:
 
         return translated_hotwords
 
-    def send_message(self, url, message, model):
+    def send_message(self, url: str, message: str, model: str) -> Optional[int]:
+        """Send a message to the AI model and handle the streaming response.
+        
+        Args:
+            url: The API endpoint URL
+            message: The user's message to send to the AI
+            model: The name of the AI model to use
+            
+        Returns:
+            Optional[int]: The HTTP status code if successful, None if an error occurred
+        """
+        try:
+            response = self._make_api_request(url, message, model)
+            response_text = self._process_streaming_response(response, model)
+            self._handle_response_actions(response_text)
+            return response.status_code
+        except requests.exceptions.RequestException as e:
+            logging.error(f"API request failed: {e}")
+            print(f"Error: {e}")
+            return None
+            
+    def _make_api_request(self, url: str, message: str, model: str) -> requests.Response:
+        """Make the API request to the AI model.
+        
+        Args:
+            url: The API endpoint URL
+            message: The user's message
+            model: The AI model name
+            
+        Returns:
+            requests.Response: The response object from the API
+        """
         headers = {"Content-Type": "application/json"}
         data = {
             "model": model,
             "messages": [{"role": "user", "content": message}],
+            "stream": True
         }
+        response = requests.post(url, headers=headers, json=data, stream=True)
+        response.raise_for_status()
+        return response
+    
+    def _process_streaming_response(self, response: requests.Response, model: str) -> str:
+        """Process the streaming response from the AI model.
+        
+        Args:
+            response: The streaming response from the API
+            model: The AI model name
+            
+        Returns:
+            str: The accumulated response text
+        """
+        accumulated_text = ""
+        
+        for line in response.iter_lines():
+            if not line:
+                continue
+                
+            try:
+                chunk = self._parse_response_chunk(line)
+                if chunk.get('done'):
+                    break
+                    
+                if 'response' in chunk:
+                    text_chunk = chunk['response']
+                    accumulated_text += text_chunk
+                    self._display_chunk(text_chunk)
+            except json.JSONDecodeError:
+                continue
+                
+        return self._clean_response_text(accumulated_text, model)
+    
+    def _parse_response_chunk(self, line: bytes) -> Dict[str, Any]:
+        """Parse a single chunk of the streaming response.
+        
+        Args:
+            line: A single line from the streaming response
+            
+        Returns:
+            Dict[str, Any]: The parsed JSON chunk
+        """
+        json_str = line.decode('utf-8').removeprefix('data: ').strip()
+        return json.loads(json_str) if json_str else {}
+    
+    def _display_chunk(self, text_chunk: str) -> None:
+        """Display and log a chunk of text from the AI response.
+        
+        Args:
+            text_chunk: The text chunk to display
+        """
+        print(text_chunk, end='', flush=True)
+        logging.info(f"AI Response chunk: {text_chunk}")
+    
+    def _clean_response_text(self, text: str, model: str) -> str:
+        """Clean the response text based on the model type.
+        
+        Args:
+            text: The text to clean
+            model: The AI model name
+            
+        Returns:
+            str: The cleaned text
+        """
+        if model == "deepseek-r1:14b":
+            return re.sub(r"<think>(.*?)</think>", "", text)
+        return text
+    
+    def _handle_response_actions(self, text: str) -> None:
+        """Handle various actions based on the AI response.
+        
+        Args:
+            text: The complete AI response text
+        """
+        print()  # New line after streaming
+        self.speak(text)
+        
+        home_command = HomeAssistantControl()
+        home_command.process_home_command(text)
 
+    def speak(self, text: str) -> None:
+        """Convert text to speech and play it.
+        
+        Uses Google Text-to-Speech (gTTS) to convert the text to audio
+        and pygame to play the audio. The audio file is temporarily stored
+        and automatically cleaned up after playback.
+        
+        Args:
+            text: The text to convert to speech
+        """
         try:
-            response = requests.post(url, headers=headers, json=data)
-            response.raise_for_status()
-
-            # Extract the AI's response
-            text = response.json()["choices"][0]["message"]["content"]
-            print("AI Response:", text)
-            logging.info(f"AI Response: {text}")
-            # Use regex to filter out the <think> tags if the model is deepseek
-            if model == "deepseek-r1:8b":
-                text = re.sub(r"<think>(.*?)</think>", "", text)
-
-            self.speak(text)  # Provide verbal feedback to the user
-
-            # Now filter and process the response for Home Assistant commands
-            home_command = HomeAssistantControl()
-            home_command.process_home_command(text)  # Check if response is an automation command
-
-            return response.status_code
-
-        except requests.exceptions.RequestException as e:
-            print("Error:", e)
-            logging.error(f"API Error: {e}")
-            return None
-
-    def speak(self, text):
-        tts = gtts.gTTS(text, lang="en")
-        # Create a temporary file
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
-            tts.write_to_fp(temp_file)
-        temp_file.close()
-
-        # Play the generated audio
-        pygame.init()
-        pygame.mixer.music.load(temp_file.name)
-        pygame.mixer.music.play()
-        while pygame.mixer.music.get_busy():
-            pygame.time.Clock().tick(10)
-        os.remove(temp_file.name)
+            # Convert text to speech
+            tts = gtts.gTTS(text, lang="en")
+            
+            # Create and use a temporary file
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
+                tts.write_to_fp(temp_file)
+                temp_path = temp_file.name
+            
+            # Play the generated audio
+            try:
+                pygame.mixer.music.load(temp_path)
+                pygame.mixer.music.play()
+                
+                # Wait for playback to finish
+                clock = pygame.time.Clock()
+                while pygame.mixer.music.get_busy():
+                    clock.tick(10)
+            finally:
+                # Ensure temp file is always cleaned up
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                    
+        except Exception as e:
+            logging.error(f"Error in speech synthesis: {e}")
+            print(f"Failed to speak text: {e}")
 
     def create_api_url(self, model):
-        supported_models = ["llama3.2", "dolphin-mistral", "deepseek-r1:8b"]
+        supported_models = ["llama3.2", "dolphin-mistral", "deepseek-r1:14b"]
         if model not in supported_models:
             raise ValueError(f"Unsupported model: {model}. Supported models: {supported_models}")
         else:
@@ -407,7 +558,8 @@ class AuralInterface:
         self.hotwords = [
             "hey llama", "llama", "llama are you there",
             "hey dolphin", "dolphin", "dolphin are you there",
-            "hey deepseek", "deepseek", "deepseek are you there"
+            "hey deepseek", "deepseek", "deepseek are you there",
+            "deep",
         ]
 
         # Start hotword detection in a separate thread
