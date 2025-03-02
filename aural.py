@@ -22,7 +22,23 @@ from ollama_python.endpoints import GenerateAPI, ModelManagementAPI
 
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
-from config import config
+
+class Config:
+    def __init__(self):
+        self.SPEECH_TIMEOUT = 5  # Timeout for speech detection
+        self.PHRASE_TIME_LIMIT = 10  # Maximum phrase duration
+        self.HOTWORDS = {
+            'llama': ['hey llama', 'llama', 'llama are you there'],
+            'dolphin': ['hey dolphin', 'dolphin', 'dolphin are you there'],
+            'deepseek': ['hey deepseek', 'deepseek', 'deepseek are you there', 'deep']
+        }
+        self.SUPPORTED_MODELS = {
+            'llama': type('Model', (), {'name': 'llama'}),
+            'dolphin': type('Model', (), {'name': 'dolphin'}),
+            'deepseek': type('Model', (), {'name': 'deepseek'})
+        }
+
+config = Config()
 
 @dataclass
 class AIResponse:
