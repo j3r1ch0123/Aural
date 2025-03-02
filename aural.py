@@ -301,7 +301,7 @@ class Aural:
                 print("You said:", user_input)
 
                 # Try the Ollama API first
-                text, response = self.send_message("http://localhost:11434/v1/chat/completions", user_input, model)
+                text, response = self.send_message("http://localhost:11434/api/generate", user_input, model)
                 if response != 200:
                     logging.warning(f"Ollama API failed with status code: {response}")
                     print("Falling back to generated API URL...")
