@@ -1,9 +1,8 @@
-requests
-gtts
-pygame
-geocoder
-python-weather
-speechrecognition
-geopy
-deep-translator
-ollama-python
+requests==2.31.0
+gtts==2.4.0
+pygame==2.5.2
+python-weather==0.3.8
+geocoder==1.38.1
+SpeechRecognition==3.10.0
+pydub==0.25.1
+python-dotenv==1.0.0
