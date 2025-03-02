@@ -19,8 +19,10 @@ import geocoder
 import pygame
 import python_weather
 import requests
+import queue
 import speech_recognition as sr
 import tkinter as tk
+from tkinter import ttk
 from deep_translator import GoogleTranslator
 from geopy.geocoders import Nominatim
 from ollama_python.endpoints import GenerateAPI, ModelManagementAPI
@@ -56,6 +58,8 @@ class Aural:
     
     def __init__(self) -> None:
         """Initialize the Aural assistant with necessary components and configurations."""
+        self.system_prompt = "You are Aural, an AI voice assistant. You are helpful, friendly, and concise. You maintain context from previous messages and can engage in natural conversations."
+        self.conversation_history = [{"role": "system", "content": self.system_prompt}]
         self.listening: bool = True
         self.lock: threading.Lock = threading.Lock()
         self.home_assistant_token: Optional[str] = None
@@ -85,16 +89,12 @@ class Aural:
         logging.info("Aural initialized.")
 
     def hotword_detection(self, hotwords: List[str]) -> None:
-        """Listen for hotwords and trigger appropriate model responses.
-
-        Args:
-            hotwords: List of wake words to listen for
-        """
+        """Listen for hotwords and trigger appropriate model responses."""
         recognizer = sr.Recognizer()
         print("Starting hotword detection...")
 
         try:
-            with sr.Microphone() as source:
+            with sr.Microphone() as source:  # Automatically selects system default mic
                 print("Adjusting for ambient noise...")
                 recognizer.adjust_for_ambient_noise(source)
                 print("Listening for hotwords...")
@@ -102,7 +102,6 @@ class Aural:
                 while self.listening:
                     with self.lock:
                         try:
-                            # Listen for audio input
                             audio = recognizer.listen(
                                 source, 
                                 timeout=config.SPEECH_TIMEOUT, 
@@ -113,28 +112,16 @@ class Aural:
                             if not text:
                                 print("No speech detected")
                                 continue
-                            
-                            # Check for hotwords
+
                             if any(hotword in text for hotword in hotwords):
                                 print("Hotword detected!")
-                                
-                                # Find matching model from config
                                 selected_model = None
                                 for model_name, wake_words in config.HOTWORDS.items():
                                     if any(word in text for word in wake_words):
                                         selected_model = config.SUPPORTED_MODELS[model_name]
                                         break
-                                
-                                if "exit" in text:
-                                    print("Exiting hotword detection.")
-                                    self.listening = False
-                                    break
-
-                                # Use default model if no specific match found
                                 if not selected_model:
-                                    print("No matching hotword. Using default model.")
-                                    selected_model = config.SUPPORTED_MODELS["llama"]
-                                
+                                    selected_model = config.SUPPORTED_MODELS.get("llama3.2", "llama3.2:latest")
                                 self.talk(selected_model)
 
                         except sr.WaitTimeoutError:
@@ -143,15 +130,11 @@ class Aural:
                             print("Could not understand the audio. Please try again.")
                         except sr.RequestError as e:
                             print(f"Error during speech recognition: {e}")
-                            logging.error(f"Speech recognition error: {e}")
                         except Exception as e:
                             print(f"Error during hotword detection: {e}")
-                            logging.error(f"Hotword detection error: {e}")
-                            time.sleep(0.1)  # Small delay to prevent blocking
-
+                            time.sleep(0.1)
         except Exception as e:
             print(f"Error with microphone: {e}")
-            logging.error(f"Microphone error: {e}")
 
     def translate_hotwords(self, hotwords: List[str], target_languages: List[str] = None) -> List[str]:
         """Translate hotwords into specified target languages.
@@ -197,17 +180,32 @@ class Aural:
         if not message or message.isspace():
             print("Warning: No message to send")
             return None
-            
+
+        self.conversation_history.append({"role": "user", "content": message})
+
         try:
+            # Ensure the model name is correctly formatted
+            if not model.endswith(":latest") and not model.startswith("deepseek"):
+                model += ":latest"  # Append ":latest" if missing
+            elif model.startswith("deepseek"):
+                model = "deepseek-r1:8b"
+
+            prompt = f"{self.system_prompt}\n\nHuman: {message}\nAssistant:"
             payload = {
                 "model": model,
-                "prompt": message,
-                "stream": False
+                "prompt": prompt,
+                "stream": True
             }
+
+            print(f"\nDebug - API URL: {url}")
+            print("Debug - Payload:", payload)
+
             response = requests.post(url, json=payload)
-            
+
+            print("Debug - Response Status:", response.status_code)
+            print("Debug - Response Content:", response.text)
+
             if response.status_code == 200:
-                print("API request successful.")
                 response_data = response.json()
                 self.process_response(response_data["response"], model)
                 return response.status_code
@@ -225,11 +223,68 @@ class Aural:
             response: The response from the AI model
             model: The AI model name
         """
-        print(response)
-        self.speak(response)
+        try:
+            if model == "deepseek-r1:8b":
+                response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL)
+                response = response.strip()
+            
+            # Add AI response to conversation history
+            self.conversation_history.append({"role": "assistant", "content": response})
+            
+            print(response)
+            self.speak(response)
+            
+            home_command = HomeAssistantControl()
+            home_command.process_home_command(response)
+        except Exception as e:
+            print(f"Error processing response: {str(e)}")
+            logging.error(f"Error processing response: {str(e)}")
+
+    def clear_conversation(self) -> None:
+        """Clear the conversation history but keep the system prompt."""
+        self.conversation_history = [{"role": "system", "content": self.system_prompt}]
+        print("Conversation history cleared.")
+        return self.conversation_history
+
+    def get_conversation_history(self) -> List[Dict[str, str]]:
+        """Get the full conversation history.
         
-        home_command = HomeAssistantControl()
-        home_command.process_home_command(response)
+        Returns:
+            List[Dict[str, str]]: List of conversation messages with roles and content
+        """
+        history = self.conversation_history
+        print("\nConversation History:")
+        for msg in history:
+            print(f"{msg['role'].capitalize()}: {msg['content']}")
+        return history
+
+    def save_conversation(self, filename: str = "conversation_history.json") -> None:
+        """Save the conversation history to a file.
+        
+        Args:
+            filename: Name of the file to save the conversation history to
+        """
+        try:
+            with open(filename, 'w') as f:
+                json.dump(self.conversation_history, f, indent=2)
+            print(f"Conversation saved to {filename}")
+        except Exception as e:
+            print(f"Error saving conversation: {str(e)}")
+            logging.error(f"Error saving conversation: {str(e)}")
+
+    def load_conversation(self, filename: str = "conversation_history.json") -> None:
+        """Load conversation history from a file.
+        
+        Args:
+            filename: Name of the file to load the conversation history from
+        """
+        try:
+            with open(filename, 'r') as f:
+                self.conversation_history = json.load(f)
+            print(f"Conversation loaded from {filename}")
+        except Exception as e:
+            print(f"Error loading conversation: {str(e)}")
+            logging.error(f"Error loading conversation: {str(e)}")
 
     def speak(self, text: str) -> None:
         """Convert text to speech and play it.
@@ -269,82 +324,42 @@ class Aural:
             logging.error(f"Error in speech synthesis: {e}")
                     
     def create_api_url(self, model: str) -> str:
-        """Create the API URL for the given model.
+        if not model.endswith(":latest"):
+            model += ":latest"  # Ensure correct model format
 
-        Args:
-            model: The model name
-
-        Returns:
-            str: The API URL for the model
-        """
-        supported_models = ["llama3.2", "dolphin-mistral", "deepseek-r1:8b"]
-        if model not in supported_models:
-            raise ValueError(f"Unsupported model: {model}. Supported models: {supported_models}")
-        if model == "deepseek-r1:8b":
-            return "http://localhost:11434/api/generate"
-        else:
-            return f"http://localhost:11434/api/generate"
+        return "http://localhost:11434/api/generate"  # Update if model-specific URLs are needed
 
     def talk(self, model: str) -> None:
-        """Start a conversation with the AI model.
-
-        Args:
-            model: The name of the AI model
-        """
+        """Start a conversation with the AI model."""
         recognizer = sr.Recognizer()
-        with sr.Microphone() as source:
+        logging.info(f"Starting conversation with model: {model}")
+
+        with sr.Microphone() as source:  # Automatically select the default mic
             print("Listening for a command...")
+            logging.info("Listening for a command...")
             recognizer.adjust_for_ambient_noise(source)
+
             try:
                 audio = recognizer.listen(source, timeout=10, phrase_time_limit=20)
+                logging.info("Audio captured successfully.")
                 user_input = recognizer.recognize_google(audio)
+                logging.info(f"You said: {user_input}")
                 print("You said:", user_input)
 
-                # Try the Ollama API first
-                text, response = self.send_message("http://localhost:11434/api/generate", user_input, model)
-                if response != 200:
-                    logging.warning(f"Ollama API failed with status code: {response}")
-                    print("Falling back to generated API URL...")
-                    fallback_url = self.create_api_url(model)
-                    if fallback_url:
-                        print(f"Retrying with fallback URL: {fallback_url}")
-                        text, response = self.send_message(fallback_url, user_input, model)
-                        if response != 200:
-                            print("Fallback API also failed.")
-                            logging.error(f"Fallback API failed with status code: {response}")
-                        else:
-                            print("Fallback API request successful.")
-                            logging.info("Fallback API request successful.")
-                    else:
-                        print("Could not generate fallback API URL.")
-                        logging.error("API fallback mechanism failed.")
-                else:
-                    print("Ollama API request successful.")
-                    logging.info("Ollama API request successful.")
-                
-                # Check if the command involves Home Assistant automation
-                if "turn on" in text or "turn off" in text or "toggle" in text:
-                    self.process_home_command_with_ai(model)
-                else:
-                    print("No matching command. Forwarding to API.")
-                    self.process_home_command_with_ai(model)
-                
-                # Check if the command had a weather query
-                if "weather" in text:
-                    self.handle_weather_query(user_input)
+                api_response = self.send_message("http://localhost:11434/api/generate", user_input, model)
+                if api_response is None:
+                    logging.error("API request failed. No response received.")
+                    print("API request failed. Please try again.")
+                    return
 
             except sr.UnknownValueError:
                 print("Could not understand audio")
-                logging.warning("Could not understand audio.")
             except sr.WaitTimeoutError:
                 print("No speech detected within the timeout period.")
-                logging.info("No speech detected within timeout.")
             except sr.RequestError as e:
                 print("Could not request results;", e)
-                logging.error(f"Speech Request Error: {e}")
             except Exception as e:
                 print(f"Error during speech recognition: {e}")
-                logging.error(f"Speech Recognition Error: {e}")
 
 class HomeAssistantControl:
     def __init__(self, weather_label=None):
@@ -479,6 +494,7 @@ class AuralInterface:
         print("Initializing Aural Interface...")
         # Create the main window
         self.window = tk.Tk()
+        self.aural = None  # Will be set by set_aural
         self.window.title("Aural Interface")
         print("Window created successfully")
 
@@ -512,6 +528,18 @@ class AuralInterface:
         button_frame = tk.Frame(self.window)
         button_frame.pack(pady=10)
 
+        # Create microphone selection dropdown
+        self.mic_var = tk.StringVar()
+        mics = sr.Microphone.list_microphone_names()
+        mic_frame = tk.Frame(self.window)
+        mic_frame.pack(pady=5)
+        
+        tk.Label(mic_frame, text="Select Microphone:").pack(side=tk.LEFT, padx=5)
+        mic_menu = ttk.Combobox(mic_frame, textvariable=self.mic_var)
+        mic_menu['values'] = mics
+        mic_menu.set(mics[0] if mics else "No microphones found")
+        mic_menu.pack(side=tk.LEFT, padx=5)
+        
         # Create buttons and pack them side by side
         start_button = tk.Button(button_frame, text="Start Aural", command=self.start_aural)
         start_button.pack(side=tk.LEFT, padx=5)
@@ -537,9 +565,26 @@ class AuralInterface:
         light_off_button = tk.Button(button_frame, text="Turn off Light", command=self.turn_off_light)
         light_off_button.pack(side=tk.LEFT, padx=5)
 
+        clear_conversation_button = tk.Button(button_frame, text="Clear Conversation", command=self.clear_conversation)
+        clear_conversation_button.pack(side=tk.LEFT, padx=5)
+
+        get_conversation_history_button = tk.Button(button_frame, text="Get Conversation History", command=self.get_conversation_history)
+        get_conversation_history_button.pack(side=tk.LEFT, padx=5)
+
+        save_conversation_button = tk.Button(button_frame, text="Save Conversation", command=self.save_conversation)
+        save_conversation_button.pack(side=tk.LEFT, padx=5)
+
+        load_conversation_button = tk.Button(button_frame, text="Load Conversation", command=self.load_conversation)
+        load_conversation_button.pack(side=tk.LEFT, padx=5)
+
         # Text widget for logs
         self.text_widget = tk.Text(self.window, wrap=tk.WORD, state=tk.NORMAL)
         self.text_widget.pack(expand=True, fill=tk.BOTH, pady=10)
+        
+        # Add scrollbar
+        scrollbar = tk.Scrollbar(self.window, command=self.text_widget.yview)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.text_widget.config(yscrollcommand=scrollbar.set)
 
         # Create a button to send the user input
         self.send_button = tk.Button(self.window, text="Send", command=self.send_input)
@@ -552,8 +597,9 @@ class AuralInterface:
         # Console redirection
         sys.stdout = ConsoleStream(self.text_widget)
 
-        # Initialize Aural
+        # Initialize Aural with reference to interface
         self.aural = Aural()
+        self.aural.interface = self
         self.hotwords = [
             "hey llama", "llama", "llama are you there",
             "hey dolphin", "dolphin", "dolphin are you there",
@@ -654,6 +700,8 @@ class AuralInterface:
                     model = "llama3.2"
                 elif "hey dolphin" in user_input or "dolphin are you there" in user_input or "dolphin" in user_input:
                     model = "dolphin-mistral"
+                elif "hey deepseek" in user_input or "deepseek are you there" in user_input or "deepseek" in user_input:
+                    model = "deepseek-r1:8b"
                 elif "exit" in user_input:
                     self.stop_aural()
                 else:
@@ -710,6 +758,43 @@ class AuralInterface:
         asyncio.set_event_loop(loop)
         loop.run_until_complete(self.async_check_weather())
         return self.date_label['text']
+
+    def append_text(self, text: str, clear: bool = False) -> None:
+        """Append text to the text widget."""
+        self.text_widget.configure(state=tk.NORMAL)
+        if clear:
+            self.text_widget.delete(1.0, tk.END)
+        self.text_widget.insert(tk.END, text + '\n')
+        self.text_widget.configure(state=tk.DISABLED)
+        self.text_widget.see(tk.END)
+
+    def clear_conversation(self) -> None:
+        """Clear the conversation history."""
+        if self.aural:
+            self.aural.clear_conversation()
+            self.append_text("Conversation history cleared.", clear=True)
+
+    def get_conversation_history(self) -> None:
+        """Display the conversation history."""
+        if self.aural:
+            history = self.aural.get_conversation_history()
+            self.append_text("\nConversation History:", clear=True)
+            for msg in history:
+                if msg['role'] != 'system':  # Don't show system prompt
+                    self.append_text(f"{msg['role'].capitalize()}: {msg['content']}")
+
+    def save_conversation(self) -> None:
+        """Save the conversation history."""
+        if self.aural:
+            self.aural.save_conversation()
+            self.append_text("Conversation saved to conversation_history.json")
+
+    def load_conversation(self) -> None:
+        """Load a conversation history."""
+        if self.aural:
+            self.aural.load_conversation()
+            self.append_text("Conversation loaded from conversation_history.json")
+            self.get_conversation_history()
 
     async def async_check_weather(self) -> None:
         """Asynchronously check the weather using the Python Weather API."""
