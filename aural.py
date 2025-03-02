@@ -152,7 +152,7 @@ class Aural:
                                 # Choose the model based on the hotword
                                 if "dolphin" in text:
                                     model_name = "dolphin-mistral"
-                                elif "deepseek" in text:
+                                elif "deepseek" in text or "deep" in text:
                                     model_name = "deepseek-r1:8b"
                                 else:
                                     model_name = "llama3.2"
@@ -964,6 +964,7 @@ class AuralInterface:
             try:
                 weather = await client.get(city_state)
                 temperature = weather.temperature
+                # Inaccurate weather data, work in progress
                 # print(f"The current temperature is {temperature} degrees.")
                 # self.aural.speak(f'The current temperature is {temperature} degrees.')
                 # self.weather_label.config(text=f'The current temperature is {temperature} degrees.')
