@@ -23,23 +23,45 @@ import queue
 import speech_recognition as sr
 import tkinter as tk
 from tkinter import ttk
+from bs4 import BeautifulSoup
 from deep_translator import GoogleTranslator
 from geopy.geocoders import Nominatim
+from googlesearch import search
 from ollama_python.endpoints import GenerateAPI, ModelManagementAPI
+from database import ResearchDatabase
 import gtts
+import wikipediaapi
+import newsapi
+import markdown
 
 # Local imports
 from dataclasses import dataclass
 
 class Config:
     def __init__(self):
-        import json
-        with open('config.json') as f:
-            config = json.load(f)
-        self.SPEECH_TIMEOUT = config['SPEECH_TIMEOUT']
-        self.PHRASE_TIME_LIMIT = config['PHRASE_TIME_LIMIT']
-        self.HOTWORDS = config['HOTWORDS']
-        self.SUPPORTED_MODELS = config['SUPPORTED_MODELS']
+        self.db = ResearchDatabase()
+        self.db.migrate()
+        try:
+            with open('config.json') as f:
+                config = json.load(f)
+            self.SPEECH_TIMEOUT = config['SPEECH_TIMEOUT']
+            self.PHRASE_TIME_LIMIT = config['PHRASE_TIME_LIMIT']
+            self.HOTWORDS = config['HOTWORDS']
+            self.SUPPORTED_MODELS = config['SUPPORTED_MODELS']
+        except json.JSONDecodeError as e:
+            print(f"Error parsing config.json: {e}")
+            print("Please check your config file for syntax errors")
+            self._load_defaults()
+        except KeyError as e:
+            print(f"Missing required config key: {e}")
+            self._load_defaults()
+            
+    def _load_defaults(self):
+        """Load default configuration values"""
+        self.SPEECH_TIMEOUT = 5
+        self.PHRASE_TIME_LIMIT = 10
+        self.HOTWORDS = {}
+        self.SUPPORTED_MODELS = {}
 
 config = Config()
 
@@ -62,8 +84,12 @@ class Aural:
         self.conversation_history = [{"role": "system", "content": self.system_prompt}]
         self.listening: bool = True
         self.lock: threading.Lock = threading.Lock()
+        self.relationship_context = {}
+
+        # Change these values if you want to use the home assistant control
         self.home_assistant_token: Optional[str] = None
         self.home_assistant_url: Optional[str] = None
+        
         # Initialize audio
         pygame.mixer.init()
         self.audio_enabled = True
@@ -75,6 +101,14 @@ class Aural:
         self.config = config
 
         self.home_assistant_control = HomeAssistantControl()
+    
+    def update_context(self, relationship: str, value: str) -> None:
+        """Update the relationship context with the given relationship and value."""
+        self.relationship_context[relationship] = value
+    
+    def get_context(self, relationship: str) -> dict:
+        """Get the context for the given relationship."""
+        return self.relationship_context.get(relationship, {})
         
     def _setup_logging(self) -> None:
         """Configure logging settings for the application.
@@ -119,9 +153,11 @@ class Aural:
                                 for model_name, wake_words in config.HOTWORDS.items():
                                     if any(word in text for word in wake_words):
                                         selected_model = config.SUPPORTED_MODELS[model_name]
+                                        logging.info(f"Selected model {model_name} based on hotwords")
                                         break
                                 if not selected_model:
-                                    selected_model = config.SUPPORTED_MODELS.get("llama3.2", "llama3.2:latest")
+                                    selected_model = "deepseek-r1:8b"
+                                    logging.info("Using default model: deepseek-r1:8b")
                                 self.talk(selected_model)
 
                         except sr.WaitTimeoutError:
@@ -135,6 +171,8 @@ class Aural:
                             time.sleep(0.1)
         except Exception as e:
             print(f"Error with microphone: {e}")
+        except Exception as e:
+            print(f"Error during hotword detection: {e}")
 
     def translate_hotwords(self, hotwords: List[str], target_languages: List[str] = None) -> List[str]:
         """Translate hotwords into specified target languages.
@@ -186,29 +224,36 @@ class Aural:
         try:
             # Ensure the model name is correctly formatted
             if not model.endswith(":latest") and not model.startswith("deepseek"):
-                model += ":latest"  # Append ":latest" if missing
+                model += ":latest"
             elif model.startswith("deepseek"):
                 model = "deepseek-r1:8b"
 
-            prompt = f"{self.system_prompt}\n\nHuman: {message}\nAssistant:"
             payload = {
                 "model": model,
-                "prompt": prompt,
-                "stream": True
+                "prompt": message,
+                "stream": False
             }
-
-            print(f"\nDebug - API URL: {url}")
-            print("Debug - Payload:", payload)
 
             response = requests.post(url, json=payload)
 
-            print("Debug - Response Status:", response.status_code)
-            print("Debug - Response Content:", response.text)
-
             if response.status_code == 200:
-                response_data = response.json()
-                self.process_response(response_data["response"], model)
-                return response.status_code
+                try:
+                    response_data = response.json()
+                    self.process_response(response_data["response"], model)
+                    return response.status_code
+                except json.JSONDecodeError:
+                    # Handle streaming response
+                    response_text = response.text.strip()
+                    if response_text:
+                        try:
+                            # Try parsing each line as separate JSON
+                            responses = [json.loads(line) for line in response_text.split('\n') if line]
+                            combined_response = ''.join(r.get('response', '') for r in responses)
+                            self.process_response(combined_response, model)
+                            return response.status_code
+                        except json.JSONDecodeError as e:
+                            print(f"Failed to parse streaming response: {str(e)}")
+                            return None
             else:
                 print(f"API request failed with status code: {response.status_code}")
                 return None
@@ -334,32 +379,117 @@ class Aural:
         recognizer = sr.Recognizer()
         logging.info(f"Starting conversation with model: {model}")
 
-        with sr.Microphone() as source:  # Automatically select the default mic
-            print("Listening for a command...")
-            logging.info("Listening for a command...")
-            recognizer.adjust_for_ambient_noise(source)
+        try:
+            with sr.Microphone() as source:
+                print("Listening for a command...")
+                logging.info("Listening for a command...")
+                recognizer.adjust_for_ambient_noise(source)
 
-            try:
-                audio = recognizer.listen(source, timeout=10, phrase_time_limit=20)
-                logging.info("Audio captured successfully.")
-                user_input = recognizer.recognize_google(audio)
-                logging.info(f"You said: {user_input}")
-                print("You said:", user_input)
+                try:
+                    audio = recognizer.listen(source, timeout=10, phrase_time_limit=20)
+                    logging.info("Audio captured successfully.")
+                    user_input = recognizer.recognize_google(audio)
+                    logging.info(f"You said: {user_input}")
+                    print("You said:", user_input)
 
-                api_response = self.send_message("http://localhost:11434/api/generate", user_input, model)
-                if api_response is None:
-                    logging.error("API request failed. No response received.")
-                    print("API request failed. Please try again.")
-                    return
+                    if user_input and not user_input.isspace():
+                        api_response = self.send_message("http://localhost:11434/api/generate", user_input, model)
+                        if api_response is None:
+                            logging.error("API request failed. No response received.")
+                            print("API request failed. Please try again.")
+                    else:
+                        print("No valid input detected")
+                        logging.warning("No valid input detected")
 
-            except sr.UnknownValueError:
-                print("Could not understand audio")
-            except sr.WaitTimeoutError:
-                print("No speech detected within the timeout period.")
-            except sr.RequestError as e:
-                print("Could not request results;", e)
-            except Exception as e:
-                print(f"Error during speech recognition: {e}")
+                except sr.UnknownValueError:
+                    print("Could not understand audio")
+                    logging.warning("Speech recognition could not understand audio")
+                except sr.WaitTimeoutError:
+                    print("No speech detected within the timeout period.")
+                    logging.warning("No speech detected within timeout period")
+                except sr.RequestError as e:
+                    print(f"Could not request results: {e}")
+                    logging.error(f"Speech recognition request error: {e}")
+                except Exception as e:
+                    print(f"Error during speech recognition: {e}")
+                    logging.error(f"Speech recognition error: {e}")
+
+        except OSError as e:
+            print(f"Microphone error: {e}")
+            logging.error(f"Microphone error: {e}")
+        except Exception as e:
+            print(f"Error starting conversation: {e}")
+            logging.error(f"Error starting conversation: {e}")
+
+class DeepResearch:
+    def __init__(self):
+        self.search_engines = ['google', 'wikipedia', 'news']
+        self.max_results = 5
+        self.newsapi = newsapi.NewsApiClient(api_key='YOUR_NEWSAPI_KEY')
+        self.wiki = wikipediaapi.Wikipedia('en')
+        
+    def web_search(self, query):
+        results = []
+        results.extend(self._google_search(query))
+        results.extend(self._wikipedia_search(query))
+        results.extend(self._news_search(query))
+        return results
+        
+    def _google_search(self, query):
+        try:
+            for url in search(query, num=self.max_results, stop=self.max_results, pause=2):
+                results.append(self._process_url(url))
+            return results
+        except Exception as e:
+            print(f"Search error: {e}")
+            return []
+            
+    def _process_url(self, url):
+        try:
+            response = requests.get(url)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            return {
+                'title': soup.title.string if soup.title else 'Untitled',
+                'url': url,
+                'content': soup.get_text()[:500] + '...'
+            }
+        except Exception as e:
+            print(f"URL processing error: {e}")
+            return None
+
+    def _wikipedia_search(self, query):
+        page = self.wiki.page(query)
+        if page.exists():
+            return [{
+                'title': page.title,
+                'url': page.fullurl,
+                'content': page.summary[:500] + '...',
+                'source': 'Wikipedia'
+            }]
+        return []
+        
+    def _news_search(self, query):
+        articles = self.newsapi.get_everything(q=query, language='en', page_size=self.max_results)
+        return [{
+            'title': article['title'],
+            'url': article['url'],
+            'content': article['description'][:500] + '...',
+            'source': article['source']['name'],
+            'published_at': article['publishedAt']
+        } for article in articles['articles']]
+        
+    def save_results(self, results, format='json'):
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        if format == 'json':
+            with open(f'research_results_{timestamp}.json', 'w') as f:
+                json.dump(results, f, indent=2)
+        elif format == 'md':
+            with open(f'research_results_{timestamp}.md', 'w') as f:
+                for result in results:
+                    f.write(f"## {result['title']}\n")
+                    f.write(f"**Source:** {result['source']}\n")
+                    f.write(f"**URL:** {result['url']}\n")
+                    f.write(f"{result['content']}\n\n")
 
 class HomeAssistantControl:
     def __init__(self, weather_label=None):
@@ -417,6 +547,8 @@ class HomeAssistantControl:
                     self.home_assistant_control(entity_id, action="toggle")
         elif "weather" in command:
             self.handle_weather_query("weather.your_weather_entity_id")  # Replace with the actual entity ID
+        elif "research" in command or "look up" in command:
+            self.start_research(command)
         else:
             logging.warning(f"Unknown home command: {command}")
 
@@ -441,6 +573,27 @@ class HomeAssistantControl:
         print(f"Entity ID not found for command: {command}")
         logging.warning(f"Entity ID not found in command: {command}")
         return None
+
+    def start_research(self, query):
+        research = DeepResearch()
+        results = research.web_search(query)
+        self.display_results(results)
+
+    def display_results(self, results):
+        for result in results:
+            print(f"Title: {result['title']}")
+            print(f"URL: {result['url']}")
+            print(f"Content: {result['content']}")
+            print("\n")
+
+    def handle_weather_query(self, entity_id: str) -> None:
+        """Handle a weather query.
+
+        Args:
+            entity_id: The entity ID of the weather device
+        """
+        # Replace with actual weather query logic
+        pass
 
 class AuralThread:
     def __init__(self, hotwords: List[str], token: str, home_assistant_url: str):
@@ -577,6 +730,9 @@ class AuralInterface:
         load_conversation_button = tk.Button(button_frame, text="Load Conversation", command=self.load_conversation)
         load_conversation_button.pack(side=tk.LEFT, padx=5)
 
+        self.research_button = tk.Button(button_frame, text="Deep Research", command=self.start_research)
+        self.research_button.pack(side=tk.LEFT, padx=5)
+
         # Text widget for logs
         self.text_widget = tk.Text(self.window, wrap=tk.WORD, state=tk.NORMAL)
         self.text_widget.pack(expand=True, fill=tk.BOTH, pady=10)
@@ -605,6 +761,8 @@ class AuralInterface:
             "hey dolphin", "dolphin", "dolphin are you there",
             "hey deepseek", "deepseek", "deepseek are you there",
             "deep",
+            "research", "look up", "find information",
+            "search for", "investigate"
         ]
         
         # Schedule weather update after main loop starts
@@ -814,6 +972,20 @@ class AuralInterface:
             except Exception as e:
                 print(f'Error fetching weather data: {e}')
                 logging.error(f'Error fetching weather data: {e}')
+
+    def start_research(self):
+        query = self.user_input.get("1.0", tk.END).strip()
+        if query:
+            research = DeepResearch()
+            results = research.web_search(query)
+            self.display_results(results)
+
+    def display_results(self, results):
+        for result in results:
+            print(f"Title: {result['title']}")
+            print(f"URL: {result['url']}")
+            print(f"Content: {result['content']}")
+            print("\n")
 
 # Create and run the GUI
 if __name__ == "__main__":

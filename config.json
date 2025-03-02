@@ -1,6 +1,11 @@
 {
+<<<<<<< Updated upstream
   "SPEECH_TIMEOUT": 5,
   "PHRASE_TIME_LIMIT": 10,
+=======
+  "SPEECH_TIMEOUT": 10,
+  "PHRASE_TIME_LIMIT": 15,
+>>>>>>> Stashed changes
   "HOTWORDS": {
     "llama": ["hey llama", "llama", "llama are you there"],
     "dolphin": ["hey dolphin", "dolphin", "dolphin are you there"],
@@ -12,3 +17,16 @@
     "deepseek": "deepseek"
   }
 }
+<<<<<<< Updated upstream
+=======
+{
+    "API_KEYS": {
+        "NEWSAPI": "your_key_here",
+        "WIKIPEDIA": "your_key_here"
+    },
+    "DATABASE": {
+        "PATH": "research.db",
+        "TABLE": "research_results"
+    }
+}
+>>>>>>> Stashed changes
