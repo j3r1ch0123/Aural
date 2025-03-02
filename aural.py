@@ -1,42 +1,43 @@
 #!/usr/bin/env python3.11
-import requests
-import asyncio
-import re
-import os
-import sys
-import time
-import json
-import gtts
-import tempfile
-import logging
-import pygame
-import threading
-import geocoder
-import python_weather
-import tkinter as tk
-import speech_recognition as sr
-from geopy.geocoders import Nominatim
-from datetime import datetime
-from deep_translator import GoogleTranslator
-from ollama_python.endpoints import GenerateAPI, ModelManagementAPI
 
-from typing import Optional, List, Dict, Any
+# Standard library imports
+import asyncio
+import json
+import queue
+import logging
+import os
+import re
+import sys
+import tempfile
+import threading
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+# Third-party imports
+import geocoder
+import pygame
+import python_weather
+import requests
+import speech_recognition as sr
+import tkinter as tk
+from deep_translator import GoogleTranslator
+from geopy.geocoders import Nominatim
+from ollama_python.endpoints import GenerateAPI, ModelManagementAPI
+import gtts
+
+# Local imports
 from dataclasses import dataclass
 
 class Config:
     def __init__(self):
-        self.SPEECH_TIMEOUT = 5  # Timeout for speech detection
-        self.PHRASE_TIME_LIMIT = 10  # Maximum phrase duration
-        self.HOTWORDS = {
-            'llama': ['hey llama', 'llama', 'llama are you there'],
-            'dolphin': ['hey dolphin', 'dolphin', 'dolphin are you there'],
-            'deepseek': ['hey deepseek', 'deepseek', 'deepseek are you there', 'deep']
-        }
-        self.SUPPORTED_MODELS = {
-            'llama': type('Model', (), {'name': 'llama'}),
-            'dolphin': type('Model', (), {'name': 'dolphin'}),
-            'deepseek': type('Model', (), {'name': 'deepseek'})
-        }
+        import json
+        with open('config.json') as f:
+            config = json.load(f)
+        self.SPEECH_TIMEOUT = config['SPEECH_TIMEOUT']
+        self.PHRASE_TIME_LIMIT = config['PHRASE_TIME_LIMIT']
+        self.HOTWORDS = config['HOTWORDS']
+        self.SUPPORTED_MODELS = config['SUPPORTED_MODELS']
 
 config = Config()
 
@@ -59,7 +60,9 @@ class Aural:
         self.lock: threading.Lock = threading.Lock()
         self.home_assistant_token: Optional[str] = None
         self.home_assistant_url: Optional[str] = None
+        # Initialize audio
         pygame.mixer.init()
+        self.audio_enabled = True
 
         # Configure logging
         self._setup_logging()
@@ -70,7 +73,10 @@ class Aural:
         self.home_assistant_control = HomeAssistantControl()
         
     def _setup_logging(self) -> None:
-        """Configure logging settings for the application."""
+        """Configure logging settings for the application.
+
+        Logs are written to './aural.log' with a timestamp, log level, and message.
+        """
         logging.basicConfig(
             filename='./aural.log',
             level=logging.INFO,
@@ -80,7 +86,7 @@ class Aural:
 
     def hotword_detection(self, hotwords: List[str]) -> None:
         """Listen for hotwords and trigger appropriate model responses.
-        
+
         Args:
             hotwords: List of wake words to listen for
         """
@@ -104,6 +110,10 @@ class Aural:
                             )
                             text = recognizer.recognize_google(audio).lower()
 
+                            if not text:
+                                print("No speech detected")
+                                continue
+                            
                             # Check for hotwords
                             if any(hotword in text for hotword in hotwords):
                                 print("Hotword detected!")
@@ -112,7 +122,7 @@ class Aural:
                                 selected_model = None
                                 for model_name, wake_words in config.HOTWORDS.items():
                                     if any(word in text for word in wake_words):
-                                        selected_model = config.SUPPORTED_MODELS[model_name].name
+                                        selected_model = config.SUPPORTED_MODELS[model_name]
                                         break
                                 
                                 if "exit" in text:
@@ -123,14 +133,14 @@ class Aural:
                                 # Use default model if no specific match found
                                 if not selected_model:
                                     print("No matching hotword. Using default model.")
-                                    selected_model = config.SUPPORTED_MODELS["llama"].name
+                                    selected_model = config.SUPPORTED_MODELS["llama"]
                                 
                                 self.talk(selected_model)
 
                         except sr.WaitTimeoutError:
                             print("Listening timed out, no speech detected.")
                         except sr.UnknownValueError:
-                            print("Could not understand the audio.")
+                            print("Could not understand the audio. Please try again.")
                         except sr.RequestError as e:
                             print(f"Error during speech recognition: {e}")
                             logging.error(f"Speech recognition error: {e}")
@@ -145,11 +155,11 @@ class Aural:
 
     def translate_hotwords(self, hotwords: List[str], target_languages: List[str] = None) -> List[str]:
         """Translate hotwords into specified target languages.
-        
+
         Args:
             hotwords: List of wake words to translate
             target_languages: List of language codes to translate to. Defaults to ['es', 'fr']
-            
+
         Returns:
             List[str]: List of translated hotwords
         """
@@ -184,174 +194,103 @@ class Aural:
         return translated_hotwords
 
     def send_message(self, url: str, message: str, model: str) -> Optional[int]:
-        """Send a message to the AI model and handle the streaming response.
-        
-        Args:
-            url: The API endpoint URL
-            message: The user's message to send to the AI
-            model: The name of the AI model to use
-            
-        Returns:
-            Optional[int]: The HTTP status code if successful, None if an error occurred
-        """
-        try:
-            response = self._make_api_request(url, message, model)
-            response_text = self._process_streaming_response(response, model)
-            self._handle_response_actions(response_text)
-            return response.status_code
-        except requests.exceptions.RequestException as e:
-            logging.error(f"API request failed: {e}")
-            print(f"Error: {e}")
+        if not message or message.isspace():
+            print("Warning: No message to send")
             return None
             
-    def _make_api_request(self, url: str, message: str, model: str) -> requests.Response:
-        """Make the API request to the AI model.
-        
+        try:
+            payload = {
+                "model": model,
+                "prompt": message,
+                "stream": False
+            }
+            response = requests.post(url, json=payload)
+            
+            if response.status_code == 200:
+                print("API request successful.")
+                response_data = response.json()
+                self.process_response(response_data["response"], model)
+                return response.status_code
+            else:
+                print(f"API request failed with status code: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"API request failed: {str(e)}")
+            return None
+
+    def process_response(self, response: str, model: str) -> None:
+        """Process the response from the AI model.
+
         Args:
-            url: The API endpoint URL
-            message: The user's message
+            response: The response from the AI model
             model: The AI model name
-            
-        Returns:
-            requests.Response: The response object from the API
         """
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "model": model,
-            "messages": [{"role": "user", "content": message}],
-            "stream": True
-        }
-        response = requests.post(url, headers=headers, json=data, stream=True)
-        response.raise_for_status()
-        return response
-    
-    def _process_streaming_response(self, response: requests.Response, model: str) -> str:
-        """Process the streaming response from the AI model.
-        
-        Args:
-            response: The streaming response from the API
-            model: The AI model name
-            
-        Returns:
-            str: The accumulated response text
-        """
-        accumulated_text = ""
-        
-        for line in response.iter_lines():
-            if not line:
-                continue
-                
-            try:
-                chunk = self._parse_response_chunk(line)
-                if chunk.get('done'):
-                    break
-                    
-                if 'response' in chunk:
-                    text_chunk = chunk['response']
-                    accumulated_text += text_chunk
-                    self._display_chunk(text_chunk)
-            except json.JSONDecodeError:
-                continue
-                
-        return self._clean_response_text(accumulated_text, model)
-    
-    def _parse_response_chunk(self, line: bytes) -> Dict[str, Any]:
-        """Parse a single chunk of the streaming response.
-        
-        Args:
-            line: A single line from the streaming response
-            
-        Returns:
-            Dict[str, Any]: The parsed JSON chunk
-        """
-        json_str = line.decode('utf-8').removeprefix('data: ').strip()
-        return json.loads(json_str) if json_str else {}
-    
-    def _display_chunk(self, text_chunk: str) -> None:
-        """Display and log a chunk of text from the AI response.
-        
-        Args:
-            text_chunk: The text chunk to display
-        """
-        print(text_chunk, end='', flush=True)
-        logging.info(f"AI Response chunk: {text_chunk}")
-    
-    def _clean_response_text(self, text: str, model: str) -> str:
-        """Clean the response text based on the model type.
-        
-        Args:
-            text: The text to clean
-            model: The AI model name
-            
-        Returns:
-            str: The cleaned text
-        """
-        if model == "deepseek-r1:14b":
-            return re.sub(r"<think>(.*?)</think>", "", text)
-        return text
-    
-    def _handle_response_actions(self, text: str) -> None:
-        """Handle various actions based on the AI response.
-        
-        Args:
-            text: The complete AI response text
-        """
-        print()  # New line after streaming
-        self.speak(text)
+        print(response)
+        self.speak(response)
         
         home_command = HomeAssistantControl()
-        home_command.process_home_command(text)
+        home_command.process_home_command(response)
 
     def speak(self, text: str) -> None:
         """Convert text to speech and play it.
-        
+
         Uses Google Text-to-Speech (gTTS) to convert the text to audio
         and pygame to play the audio. The audio file is temporarily stored
         and automatically cleaned up after playback.
-        
+
         Args:
             text: The text to convert to speech
         """
+        if not text or text.isspace():
+            print("Warning: No text to speak")
+            return
         try:
             # Convert text to speech
-            tts = gtts.gTTS(text, lang="en")
+            tts = gtts.gTTS(text)
             
             # Create and use a temporary file
-            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
-                tts.write_to_fp(temp_file)
-                temp_path = temp_file.name
-            
-            # Play the generated audio
-            try:
-                pygame.mixer.music.load(temp_path)
+            with tempfile.NamedTemporaryFile(delete=True) as fp:
+                tts.save(f"{fp.name}.mp3")
+                pygame.mixer.music.load(f"{fp.name}.mp3")
                 pygame.mixer.music.play()
                 
                 # Wait for playback to finish
                 clock = pygame.time.Clock()
                 while pygame.mixer.music.get_busy():
                     clock.tick(10)
-            finally:
-                # Ensure temp file is always cleaned up
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
-                    
-        except Exception as e:
+        except gtts.tts.gTTSError as e:
+            print(f"Failed to speak text: {str(e)}")
             logging.error(f"Error in speech synthesis: {e}")
-            print(f"Failed to speak text: {e}")
+        except pygame.error as e:
+            print(f"Failed to play audio: {str(e)}")
+            logging.error(f"Error playing audio: {e}")
+        except Exception as e:
+            print(f"Failed to speak text: {str(e)}")
+            logging.error(f"Error in speech synthesis: {e}")
+                    
+    def create_api_url(self, model: str) -> str:
+        """Create the API URL for the given model.
 
-    def create_api_url(self, model):
-        supported_models = ["llama3.2", "dolphin-mistral", "deepseek-r1:14b"]
+        Args:
+            model: The model name
+
+        Returns:
+            str: The API URL for the model
+        """
+        supported_models = ["llama3.2", "dolphin-mistral", "deepseek-r1:8b"]
         if model not in supported_models:
             raise ValueError(f"Unsupported model: {model}. Supported models: {supported_models}")
+        if model == "deepseek-r1:8b":
+            return "http://localhost:11434/api/generate"
         else:
-            print(f"Selected model: {model}")
-            # Pull the selected model
-            api = ModelManagementAPI(base_url="http://localhost:8000")
-            api.pull(model)
-        api_url = GenerateAPI(base_url="http://localhost:8000", model=model)
-        return api_url
+            return f"http://localhost:11434/api/generate"
 
-    def talk(self, model):
+    def talk(self, model: str) -> None:
+        """Start a conversation with the AI model.
+
+        Args:
+            model: The name of the AI model
+        """
         recognizer = sr.Recognizer()
         with sr.Microphone() as source:
             print("Listening for a command...")
@@ -406,7 +345,7 @@ class Aural:
             except Exception as e:
                 print(f"Error during speech recognition: {e}")
                 logging.error(f"Speech Recognition Error: {e}")
-    
+
 class HomeAssistantControl:
     def __init__(self, weather_label=None):
         self.token = os.getenv("HOME_ASSISTANT_TOKEN")
@@ -414,7 +353,13 @@ class HomeAssistantControl:
         self.home_assistant_url = self.url
         self.weather_label = weather_label  # Store a reference to the label
 
-    def home_assistant_control(self, entity_id, action="toggle"):
+    def home_assistant_control(self, entity_id: str, action: str = "toggle") -> None:
+        """Control a Home Assistant device.
+
+        Args:
+            entity_id: The ID of the device to control
+            action: The action to perform (e.g., "toggle", "turn_on", "turn_off")
+        """
         url = f"{self.home_assistant_url}/api/services/light/{action}"
         if not self.token:
             print("Home Assistant token not found. Please set the HOME_ASSISTANT_TOKEN environment variable.")
@@ -437,7 +382,12 @@ class HomeAssistantControl:
             print(f"Error controlling {entity_id}: {e}")
             logging.error(f"Error controlling {entity_id}: {e}")
     
-    def process_home_command(self, command):
+    def process_home_command(self, command: str) -> None:
+        """Process a Home Assistant command.
+
+        Args:
+            command: The command to process
+        """
         command = command.lower()
 
         # Check if the response contains a command for Home Assistant automation
@@ -455,7 +405,15 @@ class HomeAssistantControl:
         else:
             logging.warning(f"Unknown home command: {command}")
 
-    def extract_entity_id(self, command):
+    def extract_entity_id(self, command: str) -> Optional[str]:
+        """Extract the entity ID from a command.
+
+        Args:
+            command: The command to extract the entity ID from
+
+        Returns:
+            Optional[str]: The extracted entity ID or None if not found
+        """
         entity_map = {
             "light": "light.living_room",
             "fan": "fan.ceiling_fan",
@@ -470,13 +428,13 @@ class HomeAssistantControl:
         return None
 
 class AuralThread:
-    def __init__(self, hotwords, token, home_assistant_url):
+    def __init__(self, hotwords: List[str], token: str, home_assistant_url: str):
         super().__init__()
         self.hotwords = hotwords
         self.token = token
         self.home_assistant_url = home_assistant_url
 
-    def run(self):
+    def run(self) -> None:
         aural = Aural()
         aural.home_assistant_token = self.token
         aural.home_assistant_url = self.home_assistant_url
@@ -486,22 +444,43 @@ class AuralThread:
         self.log_signal.emit("Hotword detection stopped.")
 
 class ConsoleStream:
-    def __init__(self, text_widget):
+    def __init__(self, text_widget: tk.Text):
         self.text_widget = text_widget
+        self.queue = queue.Queue()
+        self.update_pending = False
 
-    def write(self, text):
-        # Use the `after` method to update the text widget from the main thread
-        self.text_widget.after(0, self._insert_text, text)
+    def write(self, text: str) -> None:
+        self.queue.put(text)
+        if not self.update_pending:
+            try:
+                self.text_widget.after(10, self._process_queue)
+                self.update_pending = True
+            except tk.TclError:
+                # Main loop not running yet, just ignore output
+                pass
 
-    def _insert_text(self, text):
-        self.text_widget.insert(tk.END, text + "\n")
-        self.text_widget.see(tk.END)  # Auto-scroll to the bottom
+    def _process_queue(self) -> None:
+        self.update_pending = False
+        try:
+            while True:
+                text = self.queue.get_nowait()
+                self.text_widget.insert(tk.END, text + "\n")
+                self.text_widget.see(tk.END)
+                self.queue.task_done()
+        except queue.Empty:
+            pass
+        
+    def flush(self) -> None:
+        # Required by Python's IO system
+        pass
 
 class AuralInterface:
     def __init__(self):
+        print("Initializing Aural Interface...")
         # Create the main window
         self.window = tk.Tk()
         self.window.title("Aural Interface")
+        print("Window created successfully")
 
         self.home = HomeAssistantControl(self.window)
 
@@ -525,8 +504,8 @@ class AuralInterface:
         self.location_label = tk.Label(self.window, text=f"Location: {self.get_geolocation()}", font=("Arial", 12))
         self.location_label.pack(pady=5)
 
-        # Create a label for the weather
-        self.weather_label = tk.Label(self.window, text=f"Weather: {self.check_weather()}", font=("Arial", 12))
+        # Create a label for the weather - will update after Aural is initialized
+        self.weather_label = tk.Label(self.window, text="Weather: Checking...", font=("Arial", 12))
         self.weather_label.pack(pady=5)
 
         # Button frame
@@ -581,110 +560,72 @@ class AuralInterface:
             "hey deepseek", "deepseek", "deepseek are you there",
             "deep",
         ]
-
+        
+        # Schedule weather update after main loop starts
+        self.window.after(100, self._initialize_after_mainloop)
+    
+    def _initialize_after_mainloop(self) -> None:
+        """Initialize components that require the main loop to be running"""
         # Start hotword detection in a separate thread
         threading.Thread(
             target=self.aural.hotword_detection,
             args=(self.hotwords,),
             daemon=True
         ).start()
-
-    def turn_on_light(self):
-        entity_id = "light.living_room"  # Adjust as needed
-        self.home.home_assistant_control(entity_id, action="turn_on")
-
-    def turn_off_light(self):
-        entity_id = "light.living_room"  # Adjust as needed
-        self.home.home_assistant_control(entity_id, action="turn_off")
-
-    def turn_on_fan(self):
-        entity_id = "fan.ceiling_fan"  # Adjust as needed
-        self.home.home_assistant_control(entity_id, action="turn_on")
-
-    def turn_off_fan(self):
-        entity_id = "fan.ceiling_fan"  # Adjust as needed
-        self.home.home_assistant_control(entity_id, action="turn_off")
-
-    def update_time(self):
-        current_time = datetime.now().strftime("%I:%M %p")
-        self.time_label.config(text=f"Current Time: {current_time}")
-        self.window.after(1000, self.update_time)
-
-    def update_time(self):
-        current_time = datetime.now().strftime("%I:%M %p")
-        self.time_label.config(text=f"Current Time: {current_time}")
-        self.window.after(1000, self.update_time)
-
-    def extract_city_state(self, location_string):
-        # Attempt to extract city and state using regex
-        pattern = r'City of ([^,]+),\s*([^,]+)$'
-        match = re.search(pattern, location_string)
         
-        if match:
-            city = match.group(1).strip()  # City
-            state = match.group(2).strip()  # State
-            return f"{city}, {state}"
-        else:
-            print("No city and state found...")
-            return None  # Default location if not found
-
-    def extract_zip(self, location_string):
-        # Regex to find the ZIP code
-        match = re.search(r'(\d{5})', location_string)
-        return match.group(1) if match else "13202"  # Default ZIP code
-
-    async def async_check_weather(self):
-        location_string = self.get_geolocation()
-        city_state = self.extract_city_state(location_string)
-        if not city_state:
-            # Use zip code instead
-            city_state = self.extract_zip(location_string)
-                
-        # Decide which to use based on preference
-        print(f"Checking weather for city and state: {city_state}")  # Expected: "Syracuse, NY"
-        print(f"Checking weather for ZIP code: {city_state}")  # Expected: "13202"
-        
-        async with python_weather.Client(unit=python_weather.IMPERIAL) as client:
-            try:
-                weather = await client.get(city_state)  # or use city_state
-                print(weather)  # Debug output
-                temperature = weather.temperature
-                self.aural.speak(f"The current temperature is {temperature} degrees.")
-                print(f"The current temperature is {temperature} degrees.")
-                self.weather_label.config(text=f"The current temperature is {temperature} degrees.")
-                logging.info(f"The current temperature is {temperature} degrees.")
-
-            except Exception as e:
-                print(f"Error fetching weather data: {e}")
-                logging.error(f"Error fetching weather data: {e}")
-
-    def check_weather(self):
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(self.async_check_weather())
-
-    def run(self):
-        """Run the GUI main loop."""
-        self.window.mainloop()
-        sys.stdout = sys.__stdout__
-
+        # Update weather
+        weather = self.check_weather()
+        self.weather_label.config(text=f"Weather: {weather}")
+    
+    def run(self) -> None:
+        """Run the Aural assistant."""
+        print("Starting Aural Interface...")
+        try:
+            self.window.mainloop()
+        except Exception as e:
+            print(f"Error in GUI mainloop: {e}")
+            raise
+    
     def start_aural(self):
-        """Start the hotword detection."""
-        print("Starting Aural...")
-        threading.Thread(
-            target=self.aural.hotword_detection,
-            args=(self.hotwords,),
-            daemon=True
-        ).start()
+        # Start the Aural assistant
+        self.aural.listening = True
 
-    def get_ip_location(self):
+    def control_device(self, device: str, action: str) -> None:
+        """Control a device (e.g., light, fan) with a specific action (e.g., on, off).
+
+        Args:
+            device: The device to control (e.g., 'light', 'fan').
+            action: The action to perform (e.g., 'on', 'off').
+        """
+        entity_id = f'switch.{device}'
+        self.home.home_assistant_control(entity_id, action)
+        logging.info(f'Turned {action} {device}')
+
+    def turn_on_light(self) -> None:
+        self.control_device('light', 'on')
+
+    def turn_off_light(self) -> None:
+        self.control_device('light', 'off')
+
+    def turn_on_fan(self) -> None:
+        self.control_device('fan', 'on')
+
+    def turn_off_fan(self) -> None:
+        self.control_device('fan', 'off')
+
+    def update_time(self) -> None:
+        current_time = datetime.now().strftime("%I:%M %p")
+        self.time_label.config(text=f"Current Time: {current_time}")
+        self.window.after(1000, self.update_time)
+
+    def get_ip_location(self) -> List[float]:
         # Get latitude and longitude from IP address
         geolocation = geocoder.ip("me")
         latlng = geolocation.latlng
         print(f"Retrieved latitude and longitude: {latlng}")
         return latlng  # Returns a list of [latitude, longitude]
 
-    def get_geolocation(self):
+    def get_geolocation(self) -> str:
         latlng = self.get_ip_location()
         if latlng:
             geolocator = Nominatim(user_agent="Aural")
@@ -702,7 +643,7 @@ class AuralInterface:
             print("Unable to retrieve location, using default location.")
             return "weather.default_location"
 
-    def send_input(self):
+    def send_input(self) -> None:
         """Send user input from the text box to the send_message function."""
         user_input = self.user_input.get("1.0", tk.END).strip()  # Retrieve and clean user input
         if user_input:
@@ -718,7 +659,7 @@ class AuralInterface:
                 else:
                     model = "deepseek-r1:8b" # Default to deepseek
 
-                status_code = self.aural.send_message("http://localhost:11434/v1/chat/completions", user_input, model)
+                status_code = self.aural.send_message("http://localhost:11434/api/generate", user_input, model)
                 if status_code != 200:
                     print("API request failed.")
                     print("Trying backup API...")
@@ -743,16 +684,51 @@ class AuralInterface:
                 # Clear the text box after sending
                 self.user_input.delete("1.0", tk.END)
 
-    def stop_aural(self):
+    def stop_aural(self) -> None:
         """Stop the hotword detection and close the application."""
         print("Stopping Aural...")
         self.aural.listening = False  # Signal the hotword detection loop to stop
         self.window.destroy()  # Close the GUI window
 
-    def pause_aural(self):
+    def pause_aural(self) -> None:
         print("Pausing Aural...")
         # Use the existing threads to pause the hotword detection loop
         self.aural.listening = False
+
+    def extract_city_state(self, location_string: str) -> str:
+        # Extract city and state from the location string
+        city_state = location_string.split(",")[0].strip()
+        return city_state
+
+    def check_weather(self) -> str:
+        """Check the current weather and update the weather label.
+
+        Returns:
+            str: A string describing the current weather
+        """
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(self.async_check_weather())
+        return self.date_label['text']
+
+    async def async_check_weather(self) -> None:
+        """Asynchronously check the weather using the Python Weather API."""
+        location_string = self.get_geolocation()
+        city_state = self.extract_city_state(location_string)
+        if not city_state:
+            # Use zip code instead
+            city_state = self.extract_zip(location_string)
+
+        async with python_weather.Client(unit=python_weather.IMPERIAL) as client:
+            try:
+                weather = await client.get(city_state)
+                temperature = weather.temperature
+                self.aural.speak(f'The current temperature is {temperature} degrees.')
+                self.weather_label.config(text=f'The current temperature is {temperature} degrees.')
+                logging.info(f'The current temperature is {temperature} degrees.')
+            except Exception as e:
+                print(f'Error fetching weather data: {e}')
+                logging.error(f'Error fetching weather data: {e}')
 
 # Create and run the GUI
 if __name__ == "__main__":

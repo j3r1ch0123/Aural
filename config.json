@@ -1,0 +1,14 @@
+{
+  "SPEECH_TIMEOUT": 5,
+  "PHRASE_TIME_LIMIT": 10,
+  "HOTWORDS": {
+    "llama": ["hey llama", "llama", "llama are you there"],
+    "dolphin": ["hey dolphin", "dolphin", "dolphin are you there"],
+    "deepseek": ["hey deepseek", "deepseek", "deepseek are you there", "deep"]
+  },
+  "SUPPORTED_MODELS": {
+    "llama": "llama",
+    "dolphin": "dolphin",
+    "deepseek": "deepseek"
+  }
+}

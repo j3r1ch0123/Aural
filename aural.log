@@ -1,0 +1,70 @@
+2025-03-01 21:15:45,367 - INFO - Aural initialized.
+2025-03-01 21:15:45,451 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:15:50,513 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:17:25,320 - INFO - Aural initialized.
+2025-03-01 21:18:46,429 - INFO - Aural initialized.
+2025-03-01 21:18:46,631 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:18:51,462 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:18:55,473 - ERROR - Hotword detection error: 'str' object has no attribute 'name'
+2025-03-01 21:19:48,693 - INFO - Aural initialized.
+2025-03-01 21:19:48,890 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:19:53,814 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:20:31,291 - ERROR - Error in speech synthesis: No text to speak
+2025-03-01 21:20:31,291 - WARNING - Unknown home command: 
+2025-03-01 21:22:28,063 - INFO - Aural initialized.
+2025-03-01 21:22:28,262 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:22:30,145 - ERROR - Error in speech synthesis: mixer not initialized
+2025-03-01 21:22:30,145 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:23:10,530 - ERROR - Error in speech synthesis: No text to speak
+2025-03-01 21:23:10,530 - WARNING - Unknown home command: 
+2025-03-01 21:27:35,834 - INFO - Aural initialized.
+2025-03-01 21:27:36,048 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:27:41,024 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:28:02,537 - ERROR - Hotword detection error: 'str' object has no attribute 'name'
+2025-03-01 21:28:04,364 - ERROR - Hotword detection error: 'str' object has no attribute 'name'
+2025-03-01 21:28:13,751 - ERROR - Hotword detection error: 'str' object has no attribute 'name'
+2025-03-01 21:29:02,859 - INFO - Aural initialized.
+2025-03-01 21:29:03,046 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:29:08,227 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:29:12,428 - ERROR - Hotword detection error: 'str' object has no attribute 'name'
+2025-03-01 21:35:21,734 - INFO - Aural initialized.
+2025-03-01 21:35:21,924 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:35:26,879 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:35:33,448 - ERROR - Hotword detection error: 'str' object has no attribute 'name'
+2025-03-01 21:35:41,025 - WARNING - Could not understand audio.
+2025-03-01 21:36:31,002 - ERROR - Error in speech synthesis: No text to speak
+2025-03-01 21:36:31,002 - WARNING - Unknown home command: 
+2025-03-01 21:39:26,198 - INFO - Aural initialized.
+2025-03-01 21:39:26,391 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:39:31,742 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:39:40,293 - ERROR - API request failed: 404 Client Error: Not Found for url: http://localhost:11434/v1/chat/completions
+2025-03-01 21:39:40,294 - ERROR - Speech Recognition Error: cannot unpack non-iterable NoneType object
+2025-03-01 21:40:28,295 - INFO - Aural initialized.
+2025-03-01 21:40:28,490 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:40:33,626 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:50:47,305 - ERROR - Error in speech synthesis: No text to speak
+2025-03-01 21:50:47,308 - WARNING - Unknown home command: 
+2025-03-01 21:53:34,221 - INFO - Aural initialized.
+2025-03-01 21:53:34,419 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:53:39,443 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:53:51,699 - WARNING - Could not understand audio.
+2025-03-01 21:54:03,710 - INFO - Aural initialized.
+2025-03-01 21:54:03,901 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:54:08,835 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:54:21,663 - ERROR - API request failed: 404 Client Error: Not Found for url: http://localhost:11434/v1/chat/completions
+2025-03-01 21:54:21,663 - ERROR - Speech Recognition Error: cannot unpack non-iterable NoneType object
+2025-03-01 21:58:17,518 - INFO - Aural initialized.
+2025-03-01 21:58:17,709 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:58:22,790 - INFO - The current temperature is 55 degrees.
+2025-03-01 21:58:49,541 - ERROR - Speech Recognition Error: cannot unpack non-iterable NoneType object
+2025-03-01 21:59:43,021 - INFO - Aural initialized.
+2025-03-01 21:59:43,217 - INFO - Requested http://ipinfo.io/json
+2025-03-01 21:59:48,115 - INFO - The current temperature is 55 degrees.
+2025-03-01 22:00:16,057 - WARNING - Unknown home command: <think>
+
+</think>
+
+hello! i'm here to help. how can i assist you today? 😊
+2025-03-01 22:01:29,522 - INFO - Aural initialized.
+2025-03-01 22:01:29,713 - INFO - Requested http://ipinfo.io/json
+2025-03-01 22:01:34,635 - INFO - The current temperature is 55 degrees.
