@@ -12,3 +12,4 @@ gtts
 wikipedia-api
 newsapi-python
 markdown
+pyaudio
